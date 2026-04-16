@@ -83,6 +83,7 @@ type UserState struct {
 	CostumeActiveSkills   map[string]CostumeActiveSkillState
 	WeaponSkills          map[string][]WeaponSkillState   // key: userWeaponUuid
 	WeaponAbilities       map[string][]WeaponAbilityState // key: userWeaponUuid
+	WeaponAwakens         map[string]WeaponAwakenState    // key: userWeaponUuid
 	DeckTypeNotes         map[model.DeckType]DeckTypeNoteState
 	WeaponNotes           map[int32]WeaponNoteState
 	DeckSubWeapons        map[string][]string
@@ -204,6 +205,9 @@ func (u *UserState) EnsureMaps() {
 	}
 	if u.WeaponAbilities == nil {
 		u.WeaponAbilities = make(map[string][]WeaponAbilityState)
+	}
+	if u.WeaponAwakens == nil {
+		u.WeaponAwakens = make(map[string]WeaponAwakenState)
 	}
 	if u.DeckTypeNotes == nil {
 		u.DeckTypeNotes = make(map[model.DeckType]DeckTypeNoteState)
@@ -460,6 +464,11 @@ type WeaponAbilityState struct {
 	UserWeaponUuid string
 	SlotNumber     int32
 	Level          int32
+}
+
+type WeaponAwakenState struct {
+	UserWeaponUuid string
+	LatestVersion  int64
 }
 
 type DeckTypeNoteState struct {

@@ -94,6 +94,27 @@ type WeaponAbilityEnhanceMaterialRow struct {
 	SortOrder                          int32 `json:"SortOrder"`
 }
 
+type WeaponAwakenRow struct {
+	WeaponId                    int32 `json:"WeaponId"`
+	WeaponAwakenEffectGroupId   int32 `json:"WeaponAwakenEffectGroupId"`
+	WeaponAwakenMaterialGroupId int32 `json:"WeaponAwakenMaterialGroupId"`
+	ConsumeGold                 int32 `json:"ConsumeGold"`
+	LevelLimitUp                int32 `json:"LevelLimitUp"`
+}
+
+type WeaponAwakenEffectGroupRow struct {
+	WeaponAwakenEffectGroupId int32 `json:"WeaponAwakenEffectGroupId"`
+	WeaponAwakenEffectType    int32 `json:"WeaponAwakenEffectType"`
+	WeaponAwakenEffectId      int32 `json:"WeaponAwakenEffectId"`
+}
+
+type WeaponAwakenMaterialGroupRow struct {
+	WeaponAwakenMaterialGroupId int32 `json:"WeaponAwakenMaterialGroupId"`
+	MaterialId                  int32 `json:"MaterialId"`
+	Count                       int32 `json:"Count"`
+	SortOrder                   int32 `json:"SortOrder"`
+}
+
 type weaponRarityEnhanceRow struct {
 	RarityType                                   int32 `json:"RarityType"`
 	BaseEnhancementObtainedExp                   int32 `json:"BaseEnhancementObtainedExp"`
@@ -137,6 +158,9 @@ type WeaponCatalog struct {
 	LimitBreakCostByMaterialByEnhanceId map[int32]NumericalFunc
 	BaseExpByEnhanceId                  map[int32]int32
 	ReleaseConditionsByGroupId          map[int32][]WeaponStoryReleaseConditionRow
+
+	AwakenByWeaponId         map[int32]WeaponAwakenRow
+	AwakenMaterialsByGroupId map[int32][]WeaponAwakenMaterialGroupRow
 }
 
 func LoadWeaponCatalog(matCatalog *MaterialCatalog) (*WeaponCatalog, error) {
@@ -199,6 +223,15 @@ func LoadWeaponCatalog(matCatalog *MaterialCatalog) (*WeaponCatalog, error) {
 		return nil, fmt.Errorf("load weapon story release condition table: %w", err)
 	}
 
+	awakenRows, err := utils.ReadJSON[WeaponAwakenRow]("EntityMWeaponAwakenTable.json")
+	if err != nil {
+		return nil, fmt.Errorf("load weapon awaken table: %w", err)
+	}
+	awakenMatRows, err := utils.ReadJSON[WeaponAwakenMaterialGroupRow]("EntityMWeaponAwakenMaterialGroupTable.json")
+	if err != nil {
+		return nil, fmt.Errorf("load weapon awaken material group table: %w", err)
+	}
+
 	catalog := &WeaponCatalog{
 		Weapons:                             make(map[int32]WeaponMasterRow, len(weapons)),
 		Materials:                           matCatalog.ByType[model.MaterialTypeWeaponEnhancement],
@@ -225,6 +258,9 @@ func LoadWeaponCatalog(matCatalog *MaterialCatalog) (*WeaponCatalog, error) {
 		LimitBreakCostByMaterialByEnhanceId: make(map[int32]NumericalFunc, len(enhanceRows)),
 		BaseExpByEnhanceId:                  make(map[int32]int32, len(enhanceRows)),
 		ReleaseConditionsByGroupId:          make(map[int32][]WeaponStoryReleaseConditionRow),
+
+		AwakenByWeaponId:         make(map[int32]WeaponAwakenRow, len(awakenRows)),
+		AwakenMaterialsByGroupId: make(map[int32][]WeaponAwakenMaterialGroupRow),
 	}
 
 	for _, w := range weapons {
@@ -351,6 +387,14 @@ func LoadWeaponCatalog(matCatalog *MaterialCatalog) (*WeaponCatalog, error) {
 	for _, c := range releaseConditions {
 		catalog.ReleaseConditionsByGroupId[c.WeaponStoryReleaseConditionGroupId] = append(
 			catalog.ReleaseConditionsByGroupId[c.WeaponStoryReleaseConditionGroupId], c)
+	}
+
+	for _, row := range awakenRows {
+		catalog.AwakenByWeaponId[row.WeaponId] = row
+	}
+	for _, row := range awakenMatRows {
+		catalog.AwakenMaterialsByGroupId[row.WeaponAwakenMaterialGroupId] = append(
+			catalog.AwakenMaterialsByGroupId[row.WeaponAwakenMaterialGroupId], row)
 	}
 
 	// Rarity-based enhancement fallback: for weapons with WeaponSpecificEnhanceId == 0,

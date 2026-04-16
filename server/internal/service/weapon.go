@@ -18,6 +18,7 @@ var weaponDiffTables = []string{
 	"IUserWeapon",
 	"IUserWeaponSkill",
 	"IUserWeaponAbility",
+	"IUserWeaponAwaken",
 	"IUserMaterial",
 	"IUserConsumableItem",
 }
@@ -26,9 +27,17 @@ var limitBreakDiffTables = []string{
 	"IUserWeapon",
 	"IUserWeaponSkill",
 	"IUserWeaponAbility",
+	"IUserWeaponAwaken",
 	"IUserMaterial",
 	"IUserConsumableItem",
 	"IUserWeaponNote",
+}
+
+var weaponAwakenDiffTables = []string{
+	"IUserWeapon",
+	"IUserWeaponAwaken",
+	"IUserMaterial",
+	"IUserConsumableItem",
 }
 
 type WeaponServiceServer struct {
@@ -176,7 +185,8 @@ func (s *WeaponServiceServer) Sell(ctx context.Context, req *pb.SellRequest) (*p
 	tracker := userdata.NewDeleteTracker().
 		Track("IUserWeapon", oldUser, userdata.SortedWeaponRecords, []string{"userId", "userWeaponUuid"}).
 		Track("IUserWeaponSkill", oldUser, userdata.SortedWeaponSkillRecords, []string{"userId", "userWeaponUuid", "slotNumber"}).
-		Track("IUserWeaponAbility", oldUser, userdata.SortedWeaponAbilityRecords, []string{"userId", "userWeaponUuid", "slotNumber"})
+		Track("IUserWeaponAbility", oldUser, userdata.SortedWeaponAbilityRecords, []string{"userId", "userWeaponUuid", "slotNumber"}).
+		Track("IUserWeaponAwaken", oldUser, userdata.SortedWeaponAwakenRecords, []string{"userId", "userWeaponUuid"})
 
 	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
 		totalGold := int32(0)
@@ -206,6 +216,7 @@ func (s *WeaponServiceServer) Sell(ctx context.Context, req *pb.SellRequest) (*p
 			delete(user.Weapons, uuid)
 			delete(user.WeaponSkills, uuid)
 			delete(user.WeaponAbilities, uuid)
+			delete(user.WeaponAwakens, uuid)
 		}
 
 		if totalGold > 0 {
@@ -217,7 +228,7 @@ func (s *WeaponServiceServer) Sell(ctx context.Context, req *pb.SellRequest) (*p
 		return nil, fmt.Errorf("weapon sell: %w", err)
 	}
 
-	sellDiffTables := []string{"IUserWeapon", "IUserWeaponSkill", "IUserWeaponAbility", "IUserConsumableItem"}
+	sellDiffTables := []string{"IUserWeapon", "IUserWeaponSkill", "IUserWeaponAbility", "IUserWeaponAwaken", "IUserConsumableItem"}
 	tables := userdata.SelectTables(userdata.FullClientTableMap(snapshot), sellDiffTables)
 	diff := tracker.Apply(snapshot, tables)
 
@@ -583,7 +594,8 @@ func (s *WeaponServiceServer) LimitBreakByWeapon(ctx context.Context, req *pb.Li
 	tracker := userdata.NewDeleteTracker().
 		Track("IUserWeapon", oldUser, userdata.SortedWeaponRecords, []string{"userId", "userWeaponUuid"}).
 		Track("IUserWeaponSkill", oldUser, userdata.SortedWeaponSkillRecords, []string{"userId", "userWeaponUuid", "slotNumber"}).
-		Track("IUserWeaponAbility", oldUser, userdata.SortedWeaponAbilityRecords, []string{"userId", "userWeaponUuid", "slotNumber"})
+		Track("IUserWeaponAbility", oldUser, userdata.SortedWeaponAbilityRecords, []string{"userId", "userWeaponUuid", "slotNumber"}).
+		Track("IUserWeaponAwaken", oldUser, userdata.SortedWeaponAwakenRecords, []string{"userId", "userWeaponUuid"})
 
 	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
 		weapon, ok := user.Weapons[req.UserWeaponUuid]
@@ -626,6 +638,7 @@ func (s *WeaponServiceServer) LimitBreakByWeapon(ctx context.Context, req *pb.Li
 			delete(user.Weapons, uuid)
 			delete(user.WeaponSkills, uuid)
 			delete(user.WeaponAbilities, uuid)
+			delete(user.WeaponAwakens, uuid)
 			consumedCount++
 		}
 
@@ -668,7 +681,8 @@ func (s *WeaponServiceServer) EnhanceByWeapon(ctx context.Context, req *pb.Enhan
 	tracker := userdata.NewDeleteTracker().
 		Track("IUserWeapon", oldUser, userdata.SortedWeaponRecords, []string{"userId", "userWeaponUuid"}).
 		Track("IUserWeaponSkill", oldUser, userdata.SortedWeaponSkillRecords, []string{"userId", "userWeaponUuid", "slotNumber"}).
-		Track("IUserWeaponAbility", oldUser, userdata.SortedWeaponAbilityRecords, []string{"userId", "userWeaponUuid", "slotNumber"})
+		Track("IUserWeaponAbility", oldUser, userdata.SortedWeaponAbilityRecords, []string{"userId", "userWeaponUuid", "slotNumber"}).
+		Track("IUserWeaponAwaken", oldUser, userdata.SortedWeaponAwakenRecords, []string{"userId", "userWeaponUuid"})
 
 	var changedStoryIds []int32
 	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
@@ -714,6 +728,7 @@ func (s *WeaponServiceServer) EnhanceByWeapon(ctx context.Context, req *pb.Enhan
 			delete(user.Weapons, uuid)
 			delete(user.WeaponSkills, uuid)
 			delete(user.WeaponAbilities, uuid)
+			delete(user.WeaponAwakens, uuid)
 			consumedCount++
 		}
 
@@ -794,4 +809,63 @@ func (s *WeaponServiceServer) checkWeaponStoryUnlocks(user *store.UserState, wea
 		return []int32{weaponId}
 	}
 	return nil
+}
+
+func (s *WeaponServiceServer) Awaken(ctx context.Context, req *pb.WeaponAwakenRequest) (*pb.WeaponAwakenResponse, error) {
+	log.Printf("[WeaponService] Awaken: uuid=%s", req.UserWeaponUuid)
+
+	userId := currentUserId(ctx, s.users, s.sessions)
+	nowMillis := gametime.NowMillis()
+
+	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+		weapon, ok := user.Weapons[req.UserWeaponUuid]
+		if !ok {
+			log.Printf("[WeaponService] Awaken: weapon uuid=%s not found", req.UserWeaponUuid)
+			return
+		}
+
+		awakenRow, ok := s.catalog.AwakenByWeaponId[weapon.WeaponId]
+		if !ok {
+			log.Printf("[WeaponService] Awaken: no awaken data for weaponId=%d", weapon.WeaponId)
+			return
+		}
+
+		if _, already := user.WeaponAwakens[req.UserWeaponUuid]; already {
+			log.Printf("[WeaponService] Awaken: weapon uuid=%s already awakened", req.UserWeaponUuid)
+			return
+		}
+
+		mats := s.catalog.AwakenMaterialsByGroupId[awakenRow.WeaponAwakenMaterialGroupId]
+		for _, mat := range mats {
+			cur := user.Materials[mat.MaterialId]
+			cost := mat.Count
+			if cur < cost {
+				log.Printf("[WeaponService] Awaken: insufficient material id=%d have=%d need=%d", mat.MaterialId, cur, cost)
+				cost = cur
+			}
+			user.Materials[mat.MaterialId] = cur - cost
+		}
+
+		if awakenRow.ConsumeGold > 0 {
+			user.ConsumableItems[s.config.ConsumableItemIdForGold] -= awakenRow.ConsumeGold
+			log.Printf("[WeaponService] Awaken: gold cost=%d", awakenRow.ConsumeGold)
+		}
+
+		user.WeaponAwakens[req.UserWeaponUuid] = store.WeaponAwakenState{
+			UserWeaponUuid: req.UserWeaponUuid,
+			LatestVersion:  nowMillis,
+		}
+
+		weapon.LatestVersion = nowMillis
+		user.Weapons[req.UserWeaponUuid] = weapon
+		log.Printf("[WeaponService] Awaken: weaponId=%d awakened", weapon.WeaponId)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("weapon awaken: %w", err)
+	}
+
+	tables := userdata.FullClientTableMap(snapshot)
+	diff := userdata.BuildDiffFromTables(userdata.SelectTables(tables, weaponAwakenDiffTables))
+
+	return &pb.WeaponAwakenResponse{DiffUserData: diff}, nil
 }

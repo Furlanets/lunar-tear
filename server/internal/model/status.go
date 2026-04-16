@@ -21,3 +21,11 @@ const (
 	CostumeAwakenEffectTypeAbility     CostumeAwakenEffectType = 2
 	CostumeAwakenEffectTypeItemAcquire CostumeAwakenEffectType = 3
 )
+
+type WeaponAwakenEffectType int32
+
+const (
+	WeaponAwakenEffectTypeUnknown  WeaponAwakenEffectType = 0
+	WeaponAwakenEffectTypeStatusUp WeaponAwakenEffectType = 1
+	WeaponAwakenEffectTypeAbility  WeaponAwakenEffectType = 2
+)
