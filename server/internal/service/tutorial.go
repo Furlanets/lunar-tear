@@ -37,11 +37,11 @@ func (s *TutorialServiceServer) SetTutorialProgress(ctx context.Context, req *pb
 				ChoiceId:      req.ChoiceId,
 			}
 		}
+		grants = s.engine.ApplyTutorialReward(user, model.TutorialType(req.TutorialType), req.ChoiceId, nowMillis)
 		if req.TutorialType == int32(model.TutorialTypeMenuFirst) ||
 			req.TutorialType == int32(model.TutorialTypeMenuSecond) {
 			store.EnsureDefaultDeck(user, nowMillis)
 		}
-		grants = s.engine.ApplyTutorialReward(user, model.TutorialType(req.TutorialType), req.ChoiceId, nowMillis)
 	})
 	tables := []string{"IUserTutorialProgress"}
 	if req.TutorialType == int32(model.TutorialTypeMenuFirst) ||

@@ -153,6 +153,5 @@ func SeedUserState(userId int64, uuid string, nowMillis int64) *UserState {
 		AutoSaleSettings:       make(map[int32]AutoSaleSettingState),
 		CharacterRebirths:      make(map[int32]CharacterRebirthState),
 	}
-	EnsureDefaultDeck(user, nowMillis)
 	return user
 }
