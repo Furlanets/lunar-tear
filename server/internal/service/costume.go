@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/google/uuid"
+
 	pb "lunar-tear/server/gen/proto"
 	"lunar-tear/server/internal/gametime"
 	"lunar-tear/server/internal/gameutil"
@@ -95,8 +97,7 @@ func (s *CostumeServiceServer) Enhance(ctx context.Context, req *pb.EnhanceReque
 		return nil, fmt.Errorf("costume enhance: %w", err)
 	}
 
-	tables := userdata.FullClientTableMap(snapshot)
-	diff := userdata.BuildDiffFromTables(userdata.SelectTables(tables, costumeDiffTables))
+	diff := userdata.BuildDiffFromTables(userdata.ProjectTables(snapshot, costumeDiffTables))
 
 	return &pb.EnhanceResponse{
 		IsGreatSuccess:         false,
@@ -177,8 +178,7 @@ func (s *CostumeServiceServer) Awaken(ctx context.Context, req *pb.AwakenRequest
 		return nil, fmt.Errorf("costume awaken: %w", err)
 	}
 
-	tables := userdata.FullClientTableMap(snapshot)
-	diff := userdata.BuildDiffFromTables(userdata.SelectTables(tables, awakenDiffTables))
+	diff := userdata.BuildDiffFromTables(userdata.ProjectTables(snapshot, awakenDiffTables))
 
 	return &pb.AwakenResponse{
 		DiffUserData: diff,
@@ -229,10 +229,12 @@ func (s *CostumeServiceServer) applyAwakenItemAcquire(user *store.UserState, ite
 		return
 	}
 
-	key := fmt.Sprintf("awaken-thought-%d", acq.PossessionId)
-	if _, exists := user.Thoughts[key]; exists {
-		return
+	for _, t := range user.Thoughts {
+		if t.ThoughtId == acq.PossessionId {
+			return
+		}
 	}
+	key := uuid.New().String()
 	user.Thoughts[key] = store.ThoughtState{
 		UserThoughtUuid:     key,
 		ThoughtId:           acq.PossessionId,
@@ -329,8 +331,7 @@ func (s *CostumeServiceServer) EnhanceActiveSkill(ctx context.Context, req *pb.E
 		return nil, fmt.Errorf("costume enhance active skill: %w", err)
 	}
 
-	tables := userdata.FullClientTableMap(snapshot)
-	diff := userdata.BuildDiffFromTables(userdata.SelectTables(tables, activeSkillDiffTables))
+	diff := userdata.BuildDiffFromTables(userdata.ProjectTables(snapshot, activeSkillDiffTables))
 
 	return &pb.EnhanceActiveSkillResponse{
 		DiffUserData: diff,
@@ -387,8 +388,7 @@ func (s *CostumeServiceServer) LimitBreak(ctx context.Context, req *pb.LimitBrea
 		return nil, fmt.Errorf("costume limit break: %w", err)
 	}
 
-	tables := userdata.FullClientTableMap(snapshot)
-	diff := userdata.BuildDiffFromTables(userdata.SelectTables(tables, costumeDiffTables))
+	diff := userdata.BuildDiffFromTables(userdata.ProjectTables(snapshot, costumeDiffTables))
 
 	return &pb.LimitBreakResponse{
 		DiffUserData: diff,

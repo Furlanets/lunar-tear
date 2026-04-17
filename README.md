@@ -7,8 +7,13 @@ Discord server: https://discord.gg/G3anrfcV
 
 ### Prerequisites
 
-- Go 1.24+
+- Go 1.25+
+- [goose](https://github.com/pressly/goose) migration tool
 - Populated `server/assets/` directory
+
+```bash
+go install github.com/pressly/goose/v3/cmd/goose@latest
+```
 
 ### Regenerate protobuf stubs
 
@@ -17,14 +22,35 @@ cd server
 make proto
 ```
 
+### Database
+
+Player state is stored in a SQLite database. Run migrations before starting the server:
+
+```bash
+cd server
+mkdir -p db
+goose -dir migrations sqlite3 db/game.db up
+```
+
+To snapshot your current game state (e.g. at scene 401):
+
+```bash
+cp db/game.db db/snapshot_scene_401.db
+```
+
+To restore from a snapshot, just point the server at it:
+
+```bash
+./lunar-tear --db db/snapshot_scene_401.db
+```
+
 ### Run
 
 ```bash
 cd server
 sudo go run ./cmd/lunar-tear \
   --host 10.0.2.2 \
-  --http-port 8080 \
-  --scene 13
+  --http-port 8080
 ```
 
 `sudo` is needed because gRPC binds to port 443 (privileged). On Linux you can use `setcap` instead:
@@ -32,7 +58,7 @@ sudo go run ./cmd/lunar-tear \
 ```bash
 go build -o lunar-tear ./cmd/lunar-tear
 sudo setcap cap_net_bind_service=+ep ./lunar-tear
-./lunar-tear --host 10.0.2.2 --http-port 8080 --scene 13
+./lunar-tear --host 10.0.2.2 --http-port 8080
 ```
 
 ### Ports
@@ -44,11 +70,11 @@ sudo setcap cap_net_bind_service=+ep ./lunar-tear
 
 ### Flags
 
-| Flag                   | Default             | Description                                              |
-| ---------------------- | ------------------- | -------------------------------------------------------- |
-| `--host`               | `127.0.0.1`         | hostname/IP given to the client                          |
-| `--http-port`          | `8080`              | HTTP/Octo server port                                    |
-| `--scene`              | `0`                 | bootstrap new users to scene N (0 = fresh start)         |
+| Flag          | Default      | Description                     |
+| ------------- | ------------ | ------------------------------- |
+| `--host`      | `127.0.0.1`  | hostname/IP given to the client |
+| `--http-port` | `8080`       | HTTP/Octo server port           |
+| `--db`        | `db/game.db` | SQLite database path            |
 
 ## ⚠️ Legal Disclaimer
 

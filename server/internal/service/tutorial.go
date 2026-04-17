@@ -55,7 +55,7 @@ func (s *TutorialServiceServer) SetTutorialProgress(ctx context.Context, req *pb
 	if len(grants) > 0 {
 		tables = append(tables, "IUserCompanion")
 	}
-	result := userdata.SelectTables(userdata.FullClientTableMap(user), tables)
+	result := userdata.ProjectTables(user, tables)
 	for _, t := range tables {
 		log.Printf("[TutorialService] DiffTable %s -> %s", t, result[t])
 	}
@@ -89,7 +89,7 @@ func (s *TutorialServiceServer) SetTutorialProgressAndReplaceDeck(ctx context.Co
 		}
 	})
 	return &pb.SetTutorialProgressAndReplaceDeckResponse{
-		DiffUserData: userdata.BuildDiffFromTables(userdata.SelectTables(userdata.FullClientTableMap(user), []string{
+		DiffUserData: userdata.BuildDiffFromTables(userdata.ProjectTables(user, []string{
 			"IUserTutorialProgress",
 			"IUserDeck",
 			"IUserDeckCharacter",
