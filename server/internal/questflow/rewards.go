@@ -316,8 +316,8 @@ func (h *QuestHandler) grantParts(user *store.UserState, partsId int32, nowMilli
 	}
 }
 
-func (h *QuestHandler) grantWeaponStoryUnlock(user *store.UserState, weaponId, storyIndex int32, nowMillis int64) {
-	store.GrantWeaponStoryUnlock(user, weaponId, storyIndex, nowMillis)
+func (h *QuestHandler) grantWeaponStoryUnlock(user *store.UserState, weaponId, storyIndex int32, nowMillis int64) bool {
+	return store.GrantWeaponStoryUnlock(user, weaponId, storyIndex, nowMillis)
 }
 
 var tutorialCompanionChoices = map[int32]int32{
@@ -354,11 +354,12 @@ func (h *QuestHandler) BattleDropRewards(questId int32) []masterdata.BattleDropI
 	return h.BattleDropsByQuestId[questId]
 }
 
-func (h *QuestHandler) grantWeaponStoryUnlocksForQuestScene(user *store.UserState, questId int32, resultType model.QuestResultType, nowMillis int64) {
+func (h *QuestHandler) grantWeaponStoryUnlocksForQuestScene(user *store.UserState, questId int32, resultType model.QuestResultType, nowMillis int64) []int32 {
+	var changedIds []int32
 	if resultType == model.QuestResultTypeHalfResult {
 		questDef, ok := h.QuestById[questId]
 		if !ok {
-			return
+			return nil
 		}
 		rewardGroupId := h.firstClearRewardGroupId(user, questDef)
 		for _, reward := range h.FirstClearRewardsByGroupId[rewardGroupId] {
@@ -373,22 +374,27 @@ func (h *QuestHandler) grantWeaponStoryUnlocksForQuestScene(user *store.UserStat
 			groupId := weapon.WeaponStoryReleaseConditionGroupId
 			for _, cond := range h.ReleaseConditionsByGroupId[groupId] {
 				if cond.WeaponStoryReleaseConditionType == model.WeaponStoryReleaseConditionTypeAcquisition && cond.ConditionValue == 0 {
-					h.grantWeaponStoryUnlock(user, weaponId, cond.StoryIndex, nowMillis)
+					if h.grantWeaponStoryUnlock(user, weaponId, cond.StoryIndex, nowMillis) {
+						changedIds = append(changedIds, weaponId)
+					}
 				}
 			}
 		}
-		return
+		return changedIds
 	}
 	if resultType == model.QuestResultTypeFullResult {
 		for groupId, conditions := range h.ReleaseConditionsByGroupId {
 			for _, cond := range conditions {
 				if cond.WeaponStoryReleaseConditionType == model.WeaponStoryReleaseConditionTypeQuestClear && cond.ConditionValue == questId {
 					for _, weaponId := range h.WeaponIdsByReleaseConditionGroupId[groupId] {
-						h.grantWeaponStoryUnlock(user, weaponId, cond.StoryIndex, nowMillis)
+						if h.grantWeaponStoryUnlock(user, weaponId, cond.StoryIndex, nowMillis) {
+							changedIds = append(changedIds, weaponId)
+						}
 					}
 					break
 				}
 			}
 		}
 	}
+	return changedIds
 }

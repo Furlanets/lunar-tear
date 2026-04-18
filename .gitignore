@@ -18,7 +18,7 @@ server/vendor/
 server/certs/
 
 # Server assets (binary data, too large for git)
-server/assets/
+server/assets/revisions/
 
 # Snapshots (recorded user state)
 snapshots/

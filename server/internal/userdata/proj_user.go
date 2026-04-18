@@ -42,9 +42,10 @@ func init() {
 	})
 	register("IUserGem", func(user store.UserState) string {
 		s, _ := encodeJSONRecords(&EntityIUserGem{
-			UserId:  user.UserId,
-			PaidGem: user.Gem.PaidGem,
-			FreeGem: user.Gem.FreeGem,
+			UserId:        user.UserId,
+			PaidGem:       user.Gem.PaidGem,
+			FreeGem:       user.Gem.FreeGem,
+			LatestVersion: gametime.NowMillis(),
 		})
 		return s
 	})

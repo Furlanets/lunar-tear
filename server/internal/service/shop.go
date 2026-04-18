@@ -32,7 +32,6 @@ var shopDiffTables = []string{
 	"IUserWeaponSkill",
 	"IUserWeaponAbility",
 	"IUserWeaponNote",
-	"IUserWeaponStory",
 }
 
 type ShopServiceServer struct {
@@ -92,6 +91,7 @@ func (s *ShopServiceServer) Buy(ctx context.Context, req *pb.BuyRequest) (*pb.Bu
 
 	tables := userdata.FullClientTableMap(snapshot)
 	diff := userdata.BuildDiffFromTables(userdata.SelectTables(tables, shopDiffTables))
+	userdata.AddWeaponStoryDiff(diff, snapshot, s.granter.DrainChangedStoryWeaponIds())
 
 	return &pb.BuyResponse{
 		OverflowPossession: []*pb.Possession{},

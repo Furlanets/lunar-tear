@@ -8,6 +8,7 @@ import (
 	"lunar-tear/server/internal/gametime"
 	"lunar-tear/server/internal/questflow"
 	"lunar-tear/server/internal/store"
+	"lunar-tear/server/internal/userdata"
 )
 
 func (s *QuestServiceServer) StartExtraQuest(ctx context.Context, req *pb.StartExtraQuestRequest) (*pb.StartExtraQuestResponse, error) {
@@ -50,6 +51,28 @@ func (s *QuestServiceServer) FinishExtraQuest(ctx context.Context, req *pb.Finis
 		outcome = s.engine.HandleExtraQuestFinish(user, req.QuestId, req.IsRetired, req.IsAnnihilated, nowMillis)
 	})
 
+	diff := buildSelectedQuestDiff(user, []string{
+		"IUserQuest",
+		"IUserQuestMission",
+		"IUserExtraQuestProgressStatus",
+		"IUserStatus",
+		"IUserGem",
+		"IUserCharacter",
+		"IUserCostume",
+		"IUserCostumeActiveSkill",
+		"IUserWeapon",
+		"IUserWeaponSkill",
+		"IUserWeaponAbility",
+		"IUserWeaponNote",
+		"IUserCompanion",
+		"IUserConsumableItem",
+		"IUserMaterial",
+		"IUserImportantItem",
+		"IUserParts",
+		"IUserPartsGroupNote",
+	})
+	userdata.AddWeaponStoryDiff(diff, user, outcome.ChangedWeaponStoryIds)
+
 	return &pb.FinishExtraQuestResponse{
 		DropReward:                      toProtoRewards(outcome.DropRewards),
 		FirstClearReward:                toProtoRewards(outcome.FirstClearRewards),
@@ -58,27 +81,7 @@ func (s *QuestServiceServer) FinishExtraQuest(ctx context.Context, req *pb.Finis
 		IsBigWin:                        outcome.IsBigWin,
 		BigWinClearedQuestMissionIdList: outcome.BigWinClearedQuestMissionIds,
 		UserStatusCampaignReward:        []*pb.QuestReward{},
-		DiffUserData: buildSelectedQuestDiff(user, []string{
-			"IUserQuest",
-			"IUserQuestMission",
-			"IUserExtraQuestProgressStatus",
-			"IUserStatus",
-			"IUserGem",
-			"IUserCharacter",
-			"IUserCostume",
-			"IUserCostumeActiveSkill",
-			"IUserWeapon",
-			"IUserWeaponSkill",
-			"IUserWeaponAbility",
-			"IUserWeaponNote",
-			"IUserWeaponStory",
-			"IUserCompanion",
-			"IUserConsumableItem",
-			"IUserMaterial",
-			"IUserImportantItem",
-			"IUserParts",
-			"IUserPartsGroupNote",
-		}),
+		DiffUserData:                    diff,
 	}, nil
 }
 
@@ -119,20 +122,23 @@ func (s *QuestServiceServer) UpdateExtraQuestSceneProgress(ctx context.Context, 
 		s.engine.HandleExtraQuestSceneProgress(user, req.QuestSceneId, gametime.NowMillis())
 	})
 
+	diff := buildSelectedQuestDiff(user, []string{
+		"IUserExtraQuestProgressStatus",
+		"IUserCharacter",
+		"IUserCostume",
+		"IUserWeapon",
+		"IUserWeaponSkill",
+		"IUserWeaponAbility",
+		"IUserCompanion",
+		"IUserConsumableItem",
+		"IUserMaterial",
+		"IUserImportantItem",
+		"IUserParts",
+		"IUserPartsGroupNote",
+	})
+	userdata.AddWeaponStoryDiff(diff, user, s.engine.Granter.DrainChangedStoryWeaponIds())
+
 	return &pb.UpdateExtraQuestSceneProgressResponse{
-		DiffUserData: buildSelectedQuestDiff(user, []string{
-			"IUserExtraQuestProgressStatus",
-			"IUserCharacter",
-			"IUserCostume",
-			"IUserWeapon",
-			"IUserWeaponSkill",
-			"IUserWeaponAbility",
-			"IUserCompanion",
-			"IUserConsumableItem",
-			"IUserMaterial",
-			"IUserImportantItem",
-			"IUserParts",
-			"IUserPartsGroupNote",
-		}),
+		DiffUserData: diff,
 	}, nil
 }

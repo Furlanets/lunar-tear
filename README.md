@@ -24,7 +24,8 @@ cd server
 sudo go run ./cmd/lunar-tear \
   --host 10.0.2.2 \
   --http-port 8080 \
-  --scene 13
+  --scene 13 
+  go run ./cmd/lunar-tear \ --host 10.0.2.2 \ --http-port 8080 \ --scene 6
 ```
 
 `sudo` is needed because gRPC binds to port 443 (privileged). On Linux you can use `setcap` instead:

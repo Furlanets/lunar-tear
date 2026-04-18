@@ -120,6 +120,12 @@ func main() {
 	}
 	log.Printf("material catalog loaded: %d materials", len(materialCatalog.All))
 
+	consumableItemCatalog, err := masterdata.LoadConsumableItemCatalog()
+	if err != nil {
+		log.Fatalf("load consumable item catalog: %v", err)
+	}
+	log.Printf("consumable item catalog loaded: %d items", len(consumableItemCatalog.All))
+
 	costumeCatalog, err := masterdata.LoadCostumeCatalog(materialCatalog)
 	if err != nil {
 		log.Fatalf("load costume catalog: %v", err)
@@ -184,6 +190,7 @@ func main() {
 		characterRebirthCatalog,
 		companionCatalog,
 		materialCatalog,
+		consumableItemCatalog,
 		gameConfig,
 		sideStoryCatalog,
 		bigHuntCatalog,

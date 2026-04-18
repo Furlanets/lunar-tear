@@ -101,13 +101,16 @@ func init() {
 		s, _ := encodeJSONMaps(sortedCageOrnamentRewardRecords(user)...)
 		return s
 	})
+	register("IUserWeaponAwaken", func(user store.UserState) string {
+		s, _ := encodeJSONMaps(SortedWeaponAwakenRecords(user)...)
+		return s
+	})
 	registerStatic(
 		"IUserCostumeLevelBonusReleaseStatus",
 		"IUserCostumeLotteryEffect",
 		"IUserCostumeLotteryEffectAbility",
 		"IUserCostumeLotteryEffectStatusUp",
 		"IUserCostumeLotteryEffectPending",
-		"IUserWeaponAwaken",
 		"IUserPartsPresetTag",
 		"IUserPartsStatusSub",
 	)
@@ -256,6 +259,27 @@ func sortedWeaponStoryRecords(user store.UserState) []map[string]any {
 		})
 	}
 	return records
+}
+
+func WeaponStoryRecordsForIds(user store.UserState, weaponIds []int32) string {
+	if len(weaponIds) == 0 {
+		return "[]"
+	}
+	records := make([]map[string]any, 0, len(weaponIds))
+	for _, weaponId := range weaponIds {
+		row, ok := user.WeaponStories[weaponId]
+		if !ok {
+			continue
+		}
+		records = append(records, map[string]any{
+			"userId":                user.UserId,
+			"weaponId":              row.WeaponId,
+			"releasedMaxStoryIndex": row.ReleasedMaxStoryIndex,
+			"latestVersion":         row.LatestVersion,
+		})
+	}
+	s, _ := encodeJSONMaps(records...)
+	return s
 }
 
 func sortedWeaponNoteRecords(user store.UserState) []map[string]any {
@@ -507,6 +531,20 @@ func SortedWeaponAbilityRecords(user store.UserState) []map[string]any {
 				"latestVersion":  int64(0),
 			})
 		}
+	}
+	return records
+}
+
+func SortedWeaponAwakenRecords(user store.UserState) []map[string]any {
+	keys := sortedStringKeys(user.WeaponAwakens)
+	records := make([]map[string]any, 0, len(keys))
+	for _, key := range keys {
+		row := user.WeaponAwakens[key]
+		records = append(records, map[string]any{
+			"userId":         user.UserId,
+			"userWeaponUuid": row.UserWeaponUuid,
+			"latestVersion":  row.LatestVersion,
+		})
 	}
 	return records
 }

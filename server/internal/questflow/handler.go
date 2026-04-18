@@ -20,6 +20,7 @@ type FinishOutcome struct {
 	MissionClearCompleteRewards  []RewardGrant
 	BigWinClearedQuestMissionIds []int32
 	IsBigWin                     bool
+	ChangedWeaponStoryIds        []int32
 }
 
 type QuestHandler struct {

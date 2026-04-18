@@ -112,12 +112,14 @@ func (h *QuestHandler) handleQuestStartInternal(user *store.UserState, questId i
 	user.Quests[questId] = questState
 }
 
-func (h *QuestHandler) applyQuestVictory(user *store.UserState, questId int32, outcome FinishOutcome, nowMillis int64) {
+func (h *QuestHandler) applyQuestVictory(user *store.UserState, questId int32, outcome *FinishOutcome, nowMillis int64) {
 	questState := user.Quests[questId]
 	if !questState.IsRewardGranted {
 		h.applyQuestRewards(user, questId, nowMillis)
-		h.grantWeaponStoryUnlocksForQuestScene(user, questId, model.QuestResultTypeHalfResult, nowMillis)
-		h.grantWeaponStoryUnlocksForQuestScene(user, questId, model.QuestResultTypeFullResult, nowMillis)
+		outcome.ChangedWeaponStoryIds = append(outcome.ChangedWeaponStoryIds,
+			h.grantWeaponStoryUnlocksForQuestScene(user, questId, model.QuestResultTypeHalfResult, nowMillis)...)
+		outcome.ChangedWeaponStoryIds = append(outcome.ChangedWeaponStoryIds,
+			h.grantWeaponStoryUnlocksForQuestScene(user, questId, model.QuestResultTypeFullResult, nowMillis)...)
 		questState.IsRewardGranted = true
 	}
 	for _, drop := range outcome.DropRewards {
@@ -141,7 +143,7 @@ func (h *QuestHandler) HandleQuestFinish(user *store.UserState, questId int32, i
 
 	outcome := h.evaluateFinishOutcome(user, questId)
 	if !isRetired {
-		h.applyQuestVictory(user, questId, outcome, nowMillis)
+		h.applyQuestVictory(user, questId, &outcome, nowMillis)
 	}
 
 	if isRetired && !isAnnihilated && quest.Stamina > 1 {

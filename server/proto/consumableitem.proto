@@ -6,29 +6,29 @@ import "proto/data.proto";
 
 package apb.api.consumableitem;
 
-service ConsumableitemService {
-	rpc UseEffectItem (UseEffectItemRequest) returns (UseEffectItemResponse);
-	rpc Sell (SellRequest) returns (SellResponse);
+service ConsumableItemService {
+	rpc UseEffectItem (ConsumableItemUseEffectItemRequest) returns (ConsumableItemUseEffectItemResponse);
+	rpc Sell (ConsumableItemSellRequest) returns (ConsumableItemSellResponse);
 }
 
-message UseEffectItemRequest {
+message ConsumableItemUseEffectItemRequest {
 	int32 consumableItemId = 1;
 	int32 count = 2;
 }
 
-message UseEffectItemResponse {
+message ConsumableItemUseEffectItemResponse {
 	map<string, apb.api.data.DiffData> diffUserData = 99;
 }
 
-message SellRequest {
-	repeated SellPossession consumableItemPossession = 1;
+message ConsumableItemSellRequest {
+	repeated ConsumableItemSellPossession consumableItemPossession = 1;
 }
 
-message SellPossession {
+message ConsumableItemSellPossession {
 	int32 consumableItemId = 1;
 	int32 count = 2;
 }
 
-message SellResponse {
+message ConsumableItemSellResponse {
 	map<string, apb.api.data.DiffData> diffUserData = 99;
 }

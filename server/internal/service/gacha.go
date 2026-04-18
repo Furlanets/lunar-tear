@@ -26,7 +26,6 @@ var gachaDiffTables = []string{
 	"IUserWeaponNote",
 	"IUserWeaponSkill",
 	"IUserWeaponAbility",
-	"IUserWeaponStory",
 	"IUserCharacter",
 	"IUserMaterial",
 }
@@ -292,10 +291,11 @@ func (s *GachaServiceServer) Draw(ctx context.Context, req *pb.DrawRequest) (*pb
 	bs := updatedUser.Gacha.BannerStates[entry.GachaId]
 	nextGacha := toProtoGacha(*entry, &bs)
 
-	diff := userdata.BuildDiffFromTables(userdata.SelectTables(
-		userdata.FullClientTableMap(updatedUser),
-		gachaDiffTables,
-	))
+	changedStoryIds := s.handler.Granter.DrainChangedStoryWeaponIds()
+	diffOrder := append(gachaDiffTables, "IUserWeaponStory")
+	allTables := userdata.FullClientTableMap(updatedUser)
+	diff := userdata.BuildDiffFromTablesOrdered(userdata.SelectTables(allTables, diffOrder), diffOrder)
+	userdata.AddWeaponStoryDiff(diff, updatedUser, changedStoryIds)
 
 	return &pb.DrawResponse{
 		NextGacha:          nextGacha,

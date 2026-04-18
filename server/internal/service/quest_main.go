@@ -41,30 +41,32 @@ func (s *QuestServiceServer) UpdateMainFlowSceneProgress(ctx context.Context, re
 		s.engine.HandleMainFlowSceneProgress(user, req.QuestSceneId, gametime.NowMillis())
 	})
 
+	diff := buildSelectedQuestDiff(user, []string{
+		"IUserMainQuestFlowStatus",
+		"IUserMainQuestMainFlowStatus",
+		"IUserMainQuestProgressStatus",
+		"IUserMainQuestSeasonRoute",
+		"IUserPortalCageStatus",
+		"IUserSideStoryQuestSceneProgressStatus",
+		"IUserQuest",
+		"IUserCharacter",
+		"IUserCostume",
+		"IUserCostumeActiveSkill",
+		"IUserWeapon",
+		"IUserWeaponSkill",
+		"IUserWeaponAbility",
+		"IUserWeaponNote",
+		"IUserCompanion",
+		"IUserConsumableItem",
+		"IUserMaterial",
+		"IUserImportantItem",
+		"IUserParts",
+		"IUserPartsGroupNote",
+	})
+	userdata.AddWeaponStoryDiff(diff, user, s.engine.Granter.DrainChangedStoryWeaponIds())
+
 	return &pb.UpdateMainFlowSceneProgressResponse{
-		DiffUserData: buildSelectedQuestDiff(user, []string{
-			"IUserMainQuestFlowStatus",
-			"IUserMainQuestMainFlowStatus",
-			"IUserMainQuestProgressStatus",
-			"IUserMainQuestSeasonRoute",
-			"IUserPortalCageStatus",
-			"IUserSideStoryQuestSceneProgressStatus",
-			"IUserQuest",
-			"IUserCharacter",
-			"IUserCostume",
-			"IUserCostumeActiveSkill",
-			"IUserWeapon",
-			"IUserWeaponSkill",
-			"IUserWeaponAbility",
-			"IUserWeaponNote",
-			"IUserWeaponStory",
-			"IUserCompanion",
-			"IUserConsumableItem",
-			"IUserMaterial",
-			"IUserImportantItem",
-			"IUserParts",
-			"IUserPartsGroupNote",
-		}),
+		DiffUserData: diff,
 	}, nil
 }
 
@@ -169,6 +171,32 @@ func (s *QuestServiceServer) FinishMainQuest(ctx context.Context, req *pb.Finish
 		outcome = s.engine.HandleQuestFinish(user, req.QuestId, req.IsRetired, req.IsAnnihilated, nowMillis)
 	})
 
+	diff := buildSelectedQuestDiff(user, []string{
+		"IUserQuest",
+		"IUserQuestMission",
+		"IUserMainQuestFlowStatus",
+		"IUserMainQuestMainFlowStatus",
+		"IUserMainQuestProgressStatus",
+		"IUserMainQuestSeasonRoute",
+		"IUserMainQuestReplayFlowStatus",
+		"IUserStatus",
+		"IUserGem",
+		"IUserCharacter",
+		"IUserCostume",
+		"IUserCostumeActiveSkill",
+		"IUserWeapon",
+		"IUserWeaponSkill",
+		"IUserWeaponAbility",
+		"IUserWeaponNote",
+		"IUserCompanion",
+		"IUserConsumableItem",
+		"IUserMaterial",
+		"IUserImportantItem",
+		"IUserParts",
+		"IUserPartsGroupNote",
+	})
+	userdata.AddWeaponStoryDiff(diff, user, outcome.ChangedWeaponStoryIds)
+
 	return &pb.FinishMainQuestResponse{
 		DropReward:                      toProtoRewards(outcome.DropRewards),
 		FirstClearReward:                toProtoRewards(outcome.FirstClearRewards),
@@ -179,31 +207,7 @@ func (s *QuestServiceServer) FinishMainQuest(ctx context.Context, req *pb.Finish
 		BigWinClearedQuestMissionIdList: outcome.BigWinClearedQuestMissionIds,
 		ReplayFlowFirstClearReward:      toProtoRewards(outcome.ReplayFlowFirstClearRewards),
 		UserStatusCampaignReward:        []*pb.QuestReward{},
-		DiffUserData: buildSelectedQuestDiff(user, []string{
-			"IUserQuest",
-			"IUserQuestMission",
-			"IUserMainQuestFlowStatus",
-			"IUserMainQuestMainFlowStatus",
-			"IUserMainQuestProgressStatus",
-			"IUserMainQuestSeasonRoute",
-			"IUserMainQuestReplayFlowStatus",
-			"IUserStatus",
-			"IUserGem",
-			"IUserCharacter",
-			"IUserCostume",
-			"IUserCostumeActiveSkill",
-			"IUserWeapon",
-			"IUserWeaponSkill",
-			"IUserWeaponAbility",
-			"IUserWeaponNote",
-			"IUserWeaponStory",
-			"IUserCompanion",
-			"IUserConsumableItem",
-			"IUserMaterial",
-			"IUserImportantItem",
-			"IUserParts",
-			"IUserPartsGroupNote",
-		}),
+		DiffUserData:                    diff,
 	}, nil
 }
 

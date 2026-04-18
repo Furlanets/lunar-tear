@@ -35,7 +35,7 @@ func (h *QuestHandler) HandleBigHuntQuestFinish(user *store.UserState, questId i
 
 	outcome := h.evaluateFinishOutcome(user, questId)
 	if !isRetired {
-		h.applyQuestVictory(user, questId, outcome, nowMillis)
+		h.applyQuestVictory(user, questId, &outcome, nowMillis)
 	}
 
 	if isRetired && !isAnnihilated && quest.Stamina > 1 {

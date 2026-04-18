@@ -55,6 +55,7 @@ func startGRPC(
 	characterRebirthCatalog *masterdata.CharacterRebirthCatalog,
 	companionCatalog *masterdata.CompanionCatalog,
 	materialCatalog *masterdata.MaterialCatalog,
+	consumableItemCatalog *masterdata.ConsumableItemCatalog,
 	gameConfig *masterdata.GameConfig,
 	sideStoryCatalog *masterdata.SideStoryCatalog,
 	bigHuntCatalog *masterdata.BigHuntCatalog,
@@ -90,6 +91,7 @@ func startGRPC(
 		characterRebirthCatalog,
 		companionCatalog,
 		materialCatalog,
+		consumableItemCatalog,
 		gameConfig,
 		sideStoryCatalog,
 		bigHuntCatalog,
@@ -126,6 +128,7 @@ func registerServices(
 	characterRebirthCatalog *masterdata.CharacterRebirthCatalog,
 	companionCatalog *masterdata.CompanionCatalog,
 	materialCatalog *masterdata.MaterialCatalog,
+	consumableItemCatalog *masterdata.ConsumableItemCatalog,
 	gameConfig *masterdata.GameConfig,
 	sideStoryCatalog *masterdata.SideStoryCatalog,
 	bigHuntCatalog *masterdata.BigHuntCatalog,
@@ -163,6 +166,7 @@ func registerServices(
 	pb.RegisterCharacterServiceServer(srv, service.NewCharacterServiceServer(userStore, userStore, characterRebirthCatalog, gameConfig))
 	pb.RegisterCompanionServiceServer(srv, service.NewCompanionServiceServer(userStore, userStore, companionCatalog, gameConfig))
 	pb.RegisterMaterialServiceServer(srv, service.NewMaterialServiceServer(userStore, userStore, materialCatalog, gameConfig))
+	pb.RegisterConsumableItemServiceServer(srv, service.NewConsumableItemServiceServer(userStore, userStore, consumableItemCatalog, gameConfig))
 	pb.RegisterSideStoryQuestServiceServer(srv, service.NewSideStoryQuestServiceServer(userStore, userStore, sideStoryCatalog))
 	pb.RegisterBigHuntServiceServer(srv, service.NewBigHuntServiceServer(userStore, userStore, bigHuntCatalog, questEngine))
 	pb.RegisterRewardServiceServer(srv, service.NewRewardServiceServer(userStore, userStore, bigHuntCatalog, questEngine.Granter))

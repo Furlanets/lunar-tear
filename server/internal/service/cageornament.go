@@ -49,10 +49,11 @@ func (s *CageOrnamentServiceServer) ReceiveReward(ctx context.Context, req *pb.R
 			"IUserMaterial", "IUserConsumableItem", "IUserGem",
 			"IUserCostume", "IUserCostumeActiveSkill", "IUserCharacter",
 			"IUserWeapon", "IUserWeaponSkill", "IUserWeaponAbility",
-			"IUserWeaponNote", "IUserWeaponStory",
+			"IUserWeaponNote",
 			"IUserCageOrnamentReward",
 		},
 	))
+	userdata.AddWeaponStoryDiff(diff, user, s.granter.DrainChangedStoryWeaponIds())
 
 	return &pb.ReceiveRewardResponse{
 		CageOrnamentReward: []*pb.CageOrnamentReward{

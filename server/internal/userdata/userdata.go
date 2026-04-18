@@ -107,12 +107,13 @@ type EntityIUserStatus struct {
 	LatestVersion         int64    // Key(5)
 }
 
-// EntityIUserGem mirrors EntityIUserGem [Key(0..2)].
+// EntityIUserGem mirrors EntityIUserGem [Key(0..3)].
 type EntityIUserGem struct {
-	_msgpack struct{} `msgpack:",asArray"`
-	UserId   int64    `json:"userId"`  // Key(0)
-	PaidGem  int32    `json:"paidGem"` // Key(1)
-	FreeGem  int32    `json:"freeGem"` // Key(2)
+	_msgpack      struct{} `msgpack:",asArray"`
+	UserId        int64    `json:"userId"`        // Key(0)
+	PaidGem       int32    `json:"paidGem"`       // Key(1)
+	FreeGem       int32    `json:"freeGem"`       // Key(2)
+	LatestVersion int64    `json:"latestVersion"` // Key(3)
 }
 
 // EntityIUserProfile mirrors EntityIUserProfile [Key(0..7)].
