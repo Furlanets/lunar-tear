@@ -38,8 +38,7 @@ func (s *TutorialServiceServer) SetTutorialProgress(ctx context.Context, req *pb
 			}
 		}
 		grants = s.engine.ApplyTutorialReward(user, model.TutorialType(req.TutorialType), req.ChoiceId, nowMillis)
-		if req.TutorialType == int32(model.TutorialTypeMenuFirst) ||
-			req.TutorialType == int32(model.TutorialTypeMenuSecond) {
+		if req.TutorialType == int32(model.TutorialTypeMenuFirst) && req.ProgressPhase == 20 {
 			store.EnsureDefaultDeck(user, nowMillis)
 		}
 	})
