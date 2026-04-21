@@ -8,6 +8,7 @@ import (
 	"lunar-tear/server/internal/gametime"
 	"lunar-tear/server/internal/model"
 	"lunar-tear/server/internal/store"
+	"lunar-tear/server/internal/userdata"
 )
 
 type DeckServiceServer struct {
@@ -22,23 +23,26 @@ func NewDeckServiceServer(users store.UserRepository, sessions store.SessionRepo
 
 func (s *DeckServiceServer) UpdateName(ctx context.Context, req *pb.UpdateNameRequest) (*pb.UpdateNameResponse, error) {
 	log.Printf("[DeckService] UpdateName: deckType=%d deckNumber=%d name=%q", req.DeckType, req.UserDeckNumber, req.Name)
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 
-	s.users.UpdateUser(userId, func(user *store.UserState) {
+	user, _ := s.users.UpdateUser(userId, func(user *store.UserState) {
 		deckKey := store.DeckKey{DeckType: model.DeckType(req.DeckType), UserDeckNumber: req.UserDeckNumber}
 		deck := user.Decks[deckKey]
 		deck.Name = req.Name
 		user.Decks[deckKey] = deck
 	})
 
-	return &pb.UpdateNameResponse{}, nil
+	result := userdata.ProjectTables(user, []string{"IUserDeck"})
+	return &pb.UpdateNameResponse{
+		DiffUserData: userdata.BuildDiffFromTables(result),
+	}, nil
 }
 
 func (s *DeckServiceServer) RefreshDeckPower(ctx context.Context, req *pb.RefreshDeckPowerRequest) (*pb.RefreshDeckPowerResponse, error) {
 	log.Printf("[DeckService] RefreshDeckPower: deckType=%d deckNumber=%d", req.DeckType, req.UserDeckNumber)
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 
-	s.users.UpdateUser(userId, func(user *store.UserState) {
+	user, _ := s.users.UpdateUser(userId, func(user *store.UserState) {
 		if req.DeckPower == nil {
 			log.Printf("[DeckService] RefreshDeckPower: deckPower is nil")
 			return
@@ -77,14 +81,19 @@ func (s *DeckServiceServer) RefreshDeckPower(ctx context.Context, req *pb.Refres
 		}
 	})
 
-	return &pb.RefreshDeckPowerResponse{}, nil
+	result := userdata.ProjectTables(user, []string{
+		"IUserDeck", "IUserDeckCharacter", "IUserDeckTypeNote",
+	})
+	return &pb.RefreshDeckPowerResponse{
+		DiffUserData: userdata.BuildDiffFromTables(result),
+	}, nil
 }
 
 func (s *DeckServiceServer) RefreshMultiDeckPower(ctx context.Context, req *pb.RefreshMultiDeckPowerRequest) (*pb.RefreshMultiDeckPowerResponse, error) {
 	log.Printf("[DeckService] RefreshMultiDeckPower: %d entries", len(req.DeckPowerInfo))
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 
-	s.users.UpdateUser(userId, func(user *store.UserState) {
+	user, _ := s.users.UpdateUser(userId, func(user *store.UserState) {
 		for _, info := range req.DeckPowerInfo {
 			if info.DeckPower == nil {
 				continue
@@ -124,7 +133,12 @@ func (s *DeckServiceServer) RefreshMultiDeckPower(ctx context.Context, req *pb.R
 		}
 	})
 
-	return &pb.RefreshMultiDeckPowerResponse{}, nil
+	result := userdata.ProjectTables(user, []string{
+		"IUserDeck", "IUserDeckCharacter", "IUserDeckTypeNote",
+	})
+	return &pb.RefreshMultiDeckPowerResponse{
+		DiffUserData: userdata.BuildDiffFromTables(result),
+	}, nil
 }
 
 func deckSlotsFromProto(deck *pb.Deck) []store.DeckCharacterInput {
@@ -157,23 +171,47 @@ func (s *DeckServiceServer) ReplaceDeck(ctx context.Context, req *pb.ReplaceDeck
 				i+1, ch.UserCostumeUuid, ch.MainUserWeaponUuid, ch.SubUserWeaponUuid, ch.UserCompanionUuid, ch.UserThoughtUuid)
 		}
 	}
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 
-	s.users.UpdateUser(userId, func(user *store.UserState) {
+	oldUser, _ := s.users.LoadUser(userId)
+	tracker := userdata.NewDeleteTracker().
+		Track("IUserDeckSubWeaponGroup", oldUser, userdata.DeckSubWeaponRecords,
+			[]string{"userId", "userDeckCharacterUuid", "userWeaponUuid"}).
+		Track("IUserDeckPartsGroup", oldUser, userdata.DeckPartsGroupRecords,
+			[]string{"userId", "userDeckCharacterUuid", "userPartsUuid"}).
+		Track("IUserDeckCharacterDressupCostume", oldUser, userdata.DeckDressupCostumeRecords,
+			[]string{"userId", "userDeckCharacterUuid"})
+
+	user, _ := s.users.UpdateUser(userId, func(user *store.UserState) {
 		if req.Deck == nil {
 			return
 		}
 		store.ApplyDeckReplacement(user, model.DeckType(req.DeckType), req.UserDeckNumber, deckSlotsFromProto(req.Deck), gametime.NowMillis())
 	})
 
-	return &pb.ReplaceDeckResponse{}, nil
+	result := userdata.ProjectTables(user, []string{
+		"IUserDeck", "IUserDeckCharacter", "IUserDeckSubWeaponGroup", "IUserDeckPartsGroup",
+		"IUserDeckCharacterDressupCostume",
+	})
+	return &pb.ReplaceDeckResponse{
+		DiffUserData: tracker.Apply(user, result),
+	}, nil
 }
 
 func (s *DeckServiceServer) ReplaceTripleDeck(ctx context.Context, req *pb.ReplaceTripleDeckRequest) (*pb.ReplaceTripleDeckResponse, error) {
 	log.Printf("[DeckService] ReplaceTripleDeck: deckType=%d deckNumber=%d", req.DeckType, req.UserDeckNumber)
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 
-	s.users.UpdateUser(userId, func(user *store.UserState) {
+	oldUser, _ := s.users.LoadUser(userId)
+	tracker := userdata.NewDeleteTracker().
+		Track("IUserDeckSubWeaponGroup", oldUser, userdata.DeckSubWeaponRecords,
+			[]string{"userId", "userDeckCharacterUuid", "userWeaponUuid"}).
+		Track("IUserDeckPartsGroup", oldUser, userdata.DeckPartsGroupRecords,
+			[]string{"userId", "userDeckCharacterUuid", "userPartsUuid"}).
+		Track("IUserDeckCharacterDressupCostume", oldUser, userdata.DeckDressupCostumeRecords,
+			[]string{"userId", "userDeckCharacterUuid"})
+
+	user, _ := s.users.UpdateUser(userId, func(user *store.UserState) {
 		nowMillis := gametime.NowMillis()
 		for idx, detail := range []*pb.DeckDetail{req.DeckDetail01, req.DeckDetail02, req.DeckDetail03} {
 			if detail == nil || detail.Deck == nil {
@@ -193,23 +231,11 @@ func (s *DeckServiceServer) ReplaceTripleDeck(ctx context.Context, req *pb.Repla
 		}
 	})
 
-	return &pb.ReplaceTripleDeckResponse{}, nil
-}
-
-func (s *DeckServiceServer) ReplaceMultiDeck(ctx context.Context, req *pb.ReplaceMultiDeckRequest) (*pb.ReplaceMultiDeckResponse, error) {
-	log.Printf("[DeckService] ReplaceMultiDeck: %d entries", len(req.DeckDetail))
-	userId := CurrentUserId(ctx, s.users, s.sessions)
-
-	s.users.UpdateUser(userId, func(user *store.UserState) {
-		nowMillis := gametime.NowMillis()
-		for idx, detail := range req.DeckDetail {
-			if detail == nil || detail.Deck == nil {
-				continue
-			}
-			log.Printf("[DeckService] ReplaceMultiDeck detail %d: deckType=%d deckNumber=%d", idx+1, detail.DeckType, detail.UserDeckNumber)
-			store.ApplyDeckReplacement(user, model.DeckType(detail.DeckType), detail.UserDeckNumber, deckSlotsFromProto(detail.Deck), nowMillis)
-		}
+	result := userdata.ProjectTables(user, []string{
+		"IUserDeck", "IUserDeckCharacter", "IUserDeckSubWeaponGroup", "IUserDeckPartsGroup",
+		"IUserDeckCharacterDressupCostume",
 	})
-
-	return &pb.ReplaceMultiDeckResponse{}, nil
+	return &pb.ReplaceTripleDeckResponse{
+		DiffUserData: tracker.Apply(user, result),
+	}, nil
 }

@@ -10,9 +10,15 @@ import (
 	"lunar-tear/server/internal/gametime"
 	"lunar-tear/server/internal/masterdata"
 	"lunar-tear/server/internal/store"
+	"lunar-tear/server/internal/userdata"
 )
 
 const partsMaxLevel = int32(15)
+
+var partsDiffTables = []string{
+	"IUserParts",
+	"IUserConsumableItem",
+}
 
 type PartsServiceServer struct {
 	pb.UnimplementedPartsServiceServer
@@ -29,9 +35,13 @@ func NewPartsServiceServer(users store.UserRepository, sessions store.SessionRep
 func (s *PartsServiceServer) Sell(ctx context.Context, req *pb.PartsSellRequest) (*pb.PartsSellResponse, error) {
 	log.Printf("[PartsService] Sell: %d part(s)", len(req.UserPartsUuid))
 
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 
-	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+	oldUser, _ := s.users.LoadUser(userId)
+	tracker := userdata.NewDeleteTracker().
+		Track("IUserParts", oldUser, userdata.SortedPartsRecords, []string{"userId", "userPartsUuid"})
+
+	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
 		totalGold := int32(0)
 		for _, uuid := range req.UserPartsUuid {
 			part, ok := user.Parts[uuid]
@@ -71,18 +81,23 @@ func (s *PartsServiceServer) Sell(ctx context.Context, req *pb.PartsSellRequest)
 		return nil, fmt.Errorf("parts sell: %w", err)
 	}
 
-	return &pb.PartsSellResponse{}, nil
+	tables := userdata.ProjectTables(snapshot, partsDiffTables)
+	diff := tracker.Apply(snapshot, tables)
+
+	return &pb.PartsSellResponse{
+		DiffUserData: diff,
+	}, nil
 }
 
 func (s *PartsServiceServer) Enhance(ctx context.Context, req *pb.PartsEnhanceRequest) (*pb.PartsEnhanceResponse, error) {
 	log.Printf("[PartsService] Enhance: uuid=%s", req.UserPartsUuid)
 
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 	nowMillis := gametime.NowMillis()
 
 	isSuccess := false
 
-	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
 		part, ok := user.Parts[req.UserPartsUuid]
 		if !ok {
 			log.Printf("[PartsService] Enhance: part uuid=%s not found", req.UserPartsUuid)
@@ -143,8 +158,11 @@ func (s *PartsServiceServer) Enhance(ctx context.Context, req *pb.PartsEnhanceRe
 		return nil, fmt.Errorf("parts enhance: %w", err)
 	}
 
+	diff := userdata.BuildDiffFromTables(userdata.ProjectTables(snapshot, partsDiffTables))
+
 	return &pb.PartsEnhanceResponse{
-		IsSuccess: isSuccess,
+		IsSuccess:    isSuccess,
+		DiffUserData: diff,
 	}, nil
 }
 
@@ -152,10 +170,10 @@ func (s *PartsServiceServer) ReplacePreset(ctx context.Context, req *pb.PartsRep
 	log.Printf("[PartsService] ReplacePreset: preset=%d uuids=[%s, %s, %s]",
 		req.UserPartsPresetNumber, req.UserPartsUuid01, req.UserPartsUuid02, req.UserPartsUuid03)
 
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 	nowMillis := gametime.NowMillis()
 
-	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
 		preset := user.PartsPresets[req.UserPartsPresetNumber]
 		preset.UserPartsPresetNumber = req.UserPartsPresetNumber
 		preset.UserPartsUuid01 = req.UserPartsUuid01
@@ -168,5 +186,9 @@ func (s *PartsServiceServer) ReplacePreset(ctx context.Context, req *pb.PartsRep
 		return nil, fmt.Errorf("parts replace preset: %w", err)
 	}
 
-	return &pb.PartsReplacePresetResponse{}, nil
+	diff := userdata.BuildDiffFromTables(userdata.ProjectTables(snapshot, []string{"IUserPartsPreset"}))
+
+	return &pb.PartsReplacePresetResponse{
+		DiffUserData: diff,
+	}, nil
 }

@@ -9,6 +9,7 @@ import (
 	"lunar-tear/server/internal/masterdata"
 	"lunar-tear/server/internal/model"
 	"lunar-tear/server/internal/store"
+	"lunar-tear/server/internal/userdata"
 )
 
 type SideStoryQuestServiceServer struct {
@@ -22,14 +23,19 @@ func NewSideStoryQuestServiceServer(users store.UserRepository, sessions store.S
 	return &SideStoryQuestServiceServer{users: users, sessions: sessions, catalog: catalog}
 }
 
+func buildSideStoryDiff(user store.UserState, tableNames []string) map[string]*pb.DiffData {
+	tables := userdata.ProjectTables(user, tableNames)
+	return userdata.BuildDiffFromTablesOrdered(tables, tableNames)
+}
+
 func (s *SideStoryQuestServiceServer) MoveSideStoryQuestProgress(ctx context.Context, req *pb.MoveSideStoryQuestRequest) (*pb.MoveSideStoryQuestResponse, error) {
 	log.Printf("[SideStoryQuestService] MoveSideStoryQuestProgress: sideStoryQuestId=%d", req.SideStoryQuestId)
 
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 	nowMillis := gametime.NowMillis()
 	firstSceneId := s.catalog.FirstSceneByQuestId[req.SideStoryQuestId]
 
-	s.users.UpdateUser(userId, func(user *store.UserState) {
+	user, _ := s.users.UpdateUser(userId, func(user *store.UserState) {
 		existing, exists := user.SideStoryQuests[req.SideStoryQuestId]
 
 		var sceneId int32
@@ -52,16 +58,21 @@ func (s *SideStoryQuestServiceServer) MoveSideStoryQuestProgress(ctx context.Con
 		}
 	})
 
-	return &pb.MoveSideStoryQuestResponse{}, nil
+	return &pb.MoveSideStoryQuestResponse{
+		DiffUserData: buildSideStoryDiff(user, []string{
+			"IUserSideStoryQuest",
+			"IUserSideStoryQuestSceneProgressStatus",
+		}),
+	}, nil
 }
 
 func (s *SideStoryQuestServiceServer) UpdateSideStoryQuestSceneProgress(ctx context.Context, req *pb.UpdateSideStoryQuestSceneProgressRequest) (*pb.UpdateSideStoryQuestSceneProgressResponse, error) {
 	log.Printf("[SideStoryQuestService] UpdateSideStoryQuestSceneProgress: sideStoryQuestId=%d sceneId=%d",
 		req.SideStoryQuestId, req.SideStoryQuestSceneId)
 
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 	nowMillis := gametime.NowMillis()
-	s.users.UpdateUser(userId, func(user *store.UserState) {
+	user, _ := s.users.UpdateUser(userId, func(user *store.UserState) {
 		user.SideStoryActiveProgress.CurrentSideStoryQuestSceneId = req.SideStoryQuestSceneId
 		user.SideStoryActiveProgress.LatestVersion = nowMillis
 
@@ -73,5 +84,10 @@ func (s *SideStoryQuestServiceServer) UpdateSideStoryQuestSceneProgress(ctx cont
 		user.SideStoryQuests[req.SideStoryQuestId] = progress
 	})
 
-	return &pb.UpdateSideStoryQuestSceneProgressResponse{}, nil
+	return &pb.UpdateSideStoryQuestSceneProgressResponse{
+		DiffUserData: buildSideStoryDiff(user, []string{
+			"IUserSideStoryQuest",
+			"IUserSideStoryQuestSceneProgressStatus",
+		}),
+	}, nil
 }

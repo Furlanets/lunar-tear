@@ -23,7 +23,7 @@ func (h *QuestHandler) initQuestState(user *store.UserState, questId int32) {
 	}
 }
 
-func isMainQuestPlayable(quest masterdata.EntityMQuest) bool {
+func isMainQuestPlayable(quest masterdata.QuestRow) bool {
 	return !quest.IsRunInTheBackground && quest.IsCountedAsQuest
 }
 

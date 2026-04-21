@@ -7,37 +7,63 @@ import (
 	"lunar-tear/server/internal/utils"
 )
 
+type PartsRow struct {
+	PartsId                       int32            `json:"PartsId"`
+	RarityType                    model.RarityType `json:"RarityType"`
+	PartsGroupId                  int32            `json:"PartsGroupId"`
+	PartsStatusMainLotteryGroupId int32            `json:"PartsStatusMainLotteryGroupId"`
+}
+
+type PartsRarityRow struct {
+	RarityType                   model.RarityType `json:"RarityType"`
+	PartsLevelUpRateGroupId      int32            `json:"PartsLevelUpRateGroupId"`
+	PartsLevelUpPriceGroupId     int32            `json:"PartsLevelUpPriceGroupId"`
+	SellPriceNumericalFunctionId int32            `json:"SellPriceNumericalFunctionId"`
+}
+
+type partsLevelUpRateRow struct {
+	PartsLevelUpRateGroupId int32 `json:"PartsLevelUpRateGroupId"`
+	LevelLowerLimit         int32 `json:"LevelLowerLimit"`
+	SuccessRatePermil       int32 `json:"SuccessRatePermil"`
+}
+
+type partsLevelUpPriceRow struct {
+	PartsLevelUpPriceGroupId int32 `json:"PartsLevelUpPriceGroupId"`
+	LevelLowerLimit          int32 `json:"LevelLowerLimit"`
+	Gold                     int32 `json:"Gold"`
+}
+
 type PartsCatalog struct {
-	PartsById                            map[int32]EntityMParts
+	PartsById                            map[int32]PartsRow
 	DefaultPartsStatusMainByLotteryGroup map[int32]int32
-	RarityByRarityType                   map[model.RarityType]EntityMPartsRarity
+	RarityByRarityType                   map[model.RarityType]PartsRarityRow
 	RateByGroupAndLevel                  map[int32]map[int32]int32
 	PriceByGroupAndLevel                 map[int32]map[int32]int32
 	SellPriceByRarity                    map[model.RarityType]NumericalFunc
 }
 
 func LoadPartsCatalog() (*PartsCatalog, error) {
-	partsRows, err := utils.ReadTable[EntityMParts]("m_parts")
+	partsRows, err := utils.ReadJSON[PartsRow]("EntityMPartsTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load parts table: %w", err)
 	}
 
-	rarityRows, err := utils.ReadTable[EntityMPartsRarity]("m_parts_rarity")
+	rarityRows, err := utils.ReadJSON[PartsRarityRow]("EntityMPartsRarityTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load parts rarity table: %w", err)
 	}
 
-	rateRows, err := utils.ReadTable[EntityMPartsLevelUpRateGroup]("m_parts_level_up_rate_group")
+	rateRows, err := utils.ReadJSON[partsLevelUpRateRow]("EntityMPartsLevelUpRateGroupTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load parts level up rate table: %w", err)
 	}
 
-	priceRows, err := utils.ReadTable[EntityMPartsLevelUpPriceGroup]("m_parts_level_up_price_group")
+	priceRows, err := utils.ReadJSON[partsLevelUpPriceRow]("EntityMPartsLevelUpPriceGroupTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load parts level up price table: %w", err)
 	}
 
-	partsById := make(map[int32]EntityMParts, len(partsRows))
+	partsById := make(map[int32]PartsRow, len(partsRows))
 	for _, p := range partsRows {
 		partsById[p.PartsId] = p
 	}
@@ -58,7 +84,7 @@ func LoadPartsCatalog() (*PartsCatalog, error) {
 		return nil, fmt.Errorf("load function resolver: %w", err)
 	}
 
-	rarityByRarityType := make(map[model.RarityType]EntityMPartsRarity, len(rarityRows))
+	rarityByRarityType := make(map[model.RarityType]PartsRarityRow, len(rarityRows))
 	sellPriceByRarity := make(map[model.RarityType]NumericalFunc, len(rarityRows))
 	for _, r := range rarityRows {
 		rarityByRarityType[r.RarityType] = r

@@ -11,6 +11,7 @@ import (
 	pb "lunar-tear/server/gen/proto"
 	"lunar-tear/server/internal/gametime"
 	"lunar-tear/server/internal/store"
+	"lunar-tear/server/internal/userdata"
 
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -29,7 +30,7 @@ func NewGiftServiceServer(users store.UserRepository, sessions store.SessionRepo
 func (s *GiftServiceServer) ReceiveGift(ctx context.Context, req *pb.ReceiveGiftRequest) (*pb.ReceiveGiftResponse, error) {
 	log.Printf("[GiftService] ReceiveGift: giftUuids=%d", len(req.UserGiftUuid))
 
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 	received := make([]string, 0, len(req.UserGiftUuid))
 	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
 		nowMillis := gametime.NowMillis()
@@ -53,6 +54,7 @@ func (s *GiftServiceServer) ReceiveGift(ctx context.Context, req *pb.ReceiveGift
 			ReceivedGiftUuid: []string{},
 			ExpiredGiftUuid:  []string{},
 			OverflowGiftUuid: []string{},
+			DiffUserData:     userdata.EmptyDiff(),
 		}, nil
 	}
 
@@ -60,6 +62,7 @@ func (s *GiftServiceServer) ReceiveGift(ctx context.Context, req *pb.ReceiveGift
 		ReceivedGiftUuid: received,
 		ExpiredGiftUuid:  []string{},
 		OverflowGiftUuid: []string{},
+		DiffUserData:     userdata.EmptyDiff(),
 	}, nil
 }
 
@@ -67,7 +70,7 @@ func (s *GiftServiceServer) GetGiftList(ctx context.Context, req *pb.GetGiftList
 	log.Printf("[GiftService] GetGiftList: rewardKinds=%v expirationType=%d ascending=%v nextCursor=%d previousCursor=%d getCount=%d",
 		req.RewardKindType, req.ExpirationType, req.IsAscendingSort, req.NextCursor, req.PreviousCursor, req.GetCount)
 
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 	user, err := s.users.LoadUser(userId)
 	if err != nil {
 		return nil, fmt.Errorf("snapshot user: %w", err)
@@ -98,12 +101,13 @@ func (s *GiftServiceServer) GetGiftList(ctx context.Context, req *pb.GetGiftList
 		TotalPageCount: pageCount(len(user.Gifts.NotReceived), int(req.GetCount)),
 		NextCursor:     0,
 		PreviousCursor: 0,
+		DiffUserData:   userdata.EmptyDiff(),
 	}, nil
 }
 
 func (s *GiftServiceServer) GetGiftReceiveHistoryList(ctx context.Context, req *emptypb.Empty) (*pb.GetGiftReceiveHistoryListResponse, error) {
 	log.Printf("[GiftService] GetGiftReceiveHistoryList")
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 	user, err := s.users.LoadUser(userId)
 	if err != nil {
 		return nil, fmt.Errorf("snapshot user: %w", err)
@@ -117,7 +121,8 @@ func (s *GiftServiceServer) GetGiftReceiveHistoryList(ctx context.Context, req *
 		})
 	}
 	return &pb.GetGiftReceiveHistoryListResponse{
-		Gift: items,
+		Gift:         items,
+		DiffUserData: userdata.EmptyDiff(),
 	}, nil
 }
 

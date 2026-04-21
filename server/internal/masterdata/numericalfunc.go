@@ -8,6 +8,18 @@ import (
 	"lunar-tear/server/internal/utils"
 )
 
+type numericalFunctionRow struct {
+	NumericalFunctionId               int32 `json:"NumericalFunctionId"`
+	NumericalFunctionType             int32 `json:"NumericalFunctionType"`
+	NumericalFunctionParameterGroupId int32 `json:"NumericalFunctionParameterGroupId"`
+}
+
+type numericalFunctionParameterRow struct {
+	NumericalFunctionParameterGroupId int32 `json:"NumericalFunctionParameterGroupId"`
+	ParameterIndex                    int32 `json:"ParameterIndex"`
+	ParameterValue                    int32 `json:"ParameterValue"`
+}
+
 type NumericalFunc struct {
 	Type   model.NumericalFunctionType
 	Params []int32
@@ -49,17 +61,17 @@ type FunctionResolver struct {
 }
 
 func LoadFunctionResolver() (*FunctionResolver, error) {
-	funcRows, err := utils.ReadTable[EntityMNumericalFunction]("m_numerical_function")
+	funcRows, err := utils.ReadJSON[numericalFunctionRow]("EntityMNumericalFunctionTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load numerical function table: %w", err)
 	}
 
-	paramRows, err := utils.ReadTable[EntityMNumericalFunctionParameterGroup]("m_numerical_function_parameter_group")
+	paramRows, err := utils.ReadJSON[numericalFunctionParameterRow]("EntityMNumericalFunctionParameterGroupTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load numerical function parameter group table: %w", err)
 	}
 
-	paramsByGroup := make(map[int32][]EntityMNumericalFunctionParameterGroup, len(paramRows))
+	paramsByGroup := make(map[int32][]numericalFunctionParameterRow, len(paramRows))
 	for _, r := range paramRows {
 		paramsByGroup[r.NumericalFunctionParameterGroupId] = append(
 			paramsByGroup[r.NumericalFunctionParameterGroupId], r)

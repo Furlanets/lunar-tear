@@ -31,7 +31,6 @@ type UserState struct {
 	BirthMonth           int32
 	BackupToken          string
 	ChargeMoneyThisMonth int64
-	FacebookId           int64
 
 	Setting                 UserSettingState
 	Status                  UserStatusState

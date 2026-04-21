@@ -6,112 +6,111 @@ import (
 
 	"lunar-tear/server/internal/gametime"
 	"lunar-tear/server/internal/store"
-	"lunar-tear/server/internal/utils"
 )
 
 func init() {
 	register("IUserCharacter", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedCharacterRecords(user)...)
+		s, _ := encodeJSONMaps(sortedCharacterRecords(user)...)
 		return s
 	})
 	register("IUserCostume", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedCostumeRecords(user)...)
+		s, _ := encodeJSONMaps(sortedCostumeRecords(user)...)
 		return s
 	})
 	register("IUserWeapon", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(SortedWeaponRecords(user)...)
+		s, _ := encodeJSONMaps(SortedWeaponRecords(user)...)
 		return s
 	})
 	register("IUserWeaponStory", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedWeaponStoryRecords(user)...)
+		s, _ := encodeJSONMaps(sortedWeaponStoryRecords(user)...)
 		return s
 	})
 	register("IUserWeaponNote", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedWeaponNoteRecords(user)...)
+		s, _ := encodeJSONMaps(sortedWeaponNoteRecords(user)...)
 		return s
 	})
 	register("IUserCompanion", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedCompanionRecords(user)...)
+		s, _ := encodeJSONMaps(sortedCompanionRecords(user)...)
 		return s
 	})
 	register("IUserThought", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedThoughtRecords(user)...)
+		s, _ := encodeJSONMaps(sortedThoughtRecords(user)...)
 		return s
 	})
 	register("IUserConsumableItem", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(SortedConsumableItemRecords(user)...)
+		s, _ := encodeJSONMaps(SortedConsumableItemRecords(user)...)
 		return s
 	})
 	register("IUserMaterial", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(SortedMaterialRecords(user)...)
+		s, _ := encodeJSONMaps(SortedMaterialRecords(user)...)
 		return s
 	})
 	register("IUserImportantItem", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedImportantItemRecords(user)...)
+		s, _ := encodeJSONMaps(sortedImportantItemRecords(user)...)
 		return s
 	})
 	register("IUserPremiumItem", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedPremiumItemRecords(user)...)
+		s, _ := encodeJSONMaps(sortedPremiumItemRecords(user)...)
 		return s
 	})
 	register("IUserParts", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(SortedPartsRecords(user)...)
+		s, _ := encodeJSONMaps(SortedPartsRecords(user)...)
 		return s
 	})
 	register("IUserCostumeActiveSkill", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedCostumeActiveSkillRecords(user)...)
+		s, _ := encodeJSONMaps(sortedCostumeActiveSkillRecords(user)...)
 		return s
 	})
 	register("IUserWeaponSkill", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(SortedWeaponSkillRecords(user)...)
+		s, _ := encodeJSONMaps(SortedWeaponSkillRecords(user)...)
 		return s
 	})
 	register("IUserWeaponAbility", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(SortedWeaponAbilityRecords(user)...)
+		s, _ := encodeJSONMaps(SortedWeaponAbilityRecords(user)...)
 		return s
 	})
 	register("IUserExplore", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(exploreRecord(user))
+		s, _ := encodeJSONMaps(exploreRecord(user))
 		return s
 	})
 	register("IUserExploreScore", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedExploreScoreRecords(user)...)
+		s, _ := encodeJSONMaps(sortedExploreScoreRecords(user)...)
 		return s
 	})
 	register("IUserPartsGroupNote", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedPartsGroupNoteRecords(user)...)
+		s, _ := encodeJSONMaps(sortedPartsGroupNoteRecords(user)...)
 		return s
 	})
 	register("IUserPartsPreset", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedPartsPresetRecords(user)...)
+		s, _ := encodeJSONMaps(sortedPartsPresetRecords(user)...)
 		return s
 	})
 	register("IUserCostumeAwakenStatusUp", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedCostumeAwakenStatusUpRecords(user)...)
+		s, _ := encodeJSONMaps(sortedCostumeAwakenStatusUpRecords(user)...)
 		return s
 	})
 	register("IUserAutoSaleSettingDetail", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedAutoSaleSettingRecords(user)...)
+		s, _ := encodeJSONMaps(sortedAutoSaleSettingRecords(user)...)
 		return s
 	})
 	register("IUserCharacterRebirth", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedCharacterRebirthRecords(user)...)
+		s, _ := encodeJSONMaps(sortedCharacterRebirthRecords(user)...)
 		return s
 	})
 	register("IUserCageOrnamentReward", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedCageOrnamentRewardRecords(user)...)
+		s, _ := encodeJSONMaps(sortedCageOrnamentRewardRecords(user)...)
 		return s
 	})
 	register("IUserWeaponAwaken", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(SortedWeaponAwakenRecords(user)...)
+		s, _ := encodeJSONMaps(SortedWeaponAwakenRecords(user)...)
 		return s
 	})
 	register("IUserCostumeLotteryEffect", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedCostumeLotteryEffectRecords(user)...)
+		s, _ := encodeJSONMaps(sortedCostumeLotteryEffectRecords(user)...)
 		return s
 	})
 	register("IUserCostumeLotteryEffectPending", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(SortedCostumeLotteryEffectPendingRecords(user)...)
+		s, _ := encodeJSONMaps(SortedCostumeLotteryEffectPendingRecords(user)...)
 		return s
 	})
 	registerStatic(
@@ -286,7 +285,7 @@ func WeaponStoryRecordsForIds(user store.UserState, weaponIds []int32) string {
 			"latestVersion":         row.LatestVersion,
 		})
 	}
-	s, _ := utils.EncodeJSONMaps(records...)
+	s, _ := encodeJSONMaps(records...)
 	return s
 }
 

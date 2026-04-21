@@ -8,47 +8,96 @@ import (
 	"lunar-tear/server/internal/utils"
 )
 
+type ShopItemRow struct {
+	ShopItemId             int32 `json:"ShopItemId"`
+	PriceType              int32 `json:"PriceType"`
+	PriceId                int32 `json:"PriceId"`
+	Price                  int32 `json:"Price"`
+	ShopItemLimitedStockId int32 `json:"ShopItemLimitedStockId"`
+}
+
+type ShopContentRow struct {
+	ShopItemId     int32 `json:"ShopItemId"`
+	PossessionType int32 `json:"PossessionType"`
+	PossessionId   int32 `json:"PossessionId"`
+	Count          int32 `json:"Count"`
+}
+
+type ShopContentEffectRow struct {
+	ShopItemId       int32 `json:"ShopItemId"`
+	EffectTargetType int32 `json:"EffectTargetType"`
+	EffectValueType  int32 `json:"EffectValueType"`
+	EffectValue      int32 `json:"EffectValue"`
+}
+
+type shopItemLimitedStockRow struct {
+	ShopItemLimitedStockId int32 `json:"ShopItemLimitedStockId"`
+	MaxCount               int32 `json:"MaxCount"`
+}
+
+type shopRow struct {
+	ShopId              int32 `json:"ShopId"`
+	ShopGroupType       int32 `json:"ShopGroupType"`
+	ShopItemCellGroupId int32 `json:"ShopItemCellGroupId"`
+}
+
+type shopItemCellGroupRow struct {
+	ShopItemCellGroupId int32 `json:"ShopItemCellGroupId"`
+	ShopItemCellId      int32 `json:"ShopItemCellId"`
+	SortOrder           int32 `json:"SortOrder"`
+}
+
+type shopItemCellRow struct {
+	ShopItemCellId int32 `json:"ShopItemCellId"`
+	ShopItemId     int32 `json:"ShopItemId"`
+}
+
 type ExchangeShopCell struct {
 	SortOrder  int32
 	ShopItemId int32
 }
 
 type ShopCatalog struct {
-	Items             map[int32]EntityMShopItem
-	Contents          map[int32][]EntityMShopItemContentPossession
-	Effects           map[int32][]EntityMShopItemContentEffect
+	Items             map[int32]ShopItemRow
+	Contents          map[int32][]ShopContentRow
+	Effects           map[int32][]ShopContentEffectRow
 	MaxStaminaMillis  map[int32]int32              // level -> max stamina in millis
 	LimitedStock      map[int32]int32              // stock id -> max count
 	ItemShopPool      []int32                      // shop item IDs for the replaceable item shop, sorted by cell sort order
 	ExchangeShopCells map[int32][]ExchangeShopCell // shopId -> sorted cells for exchange shops
 }
 
+type userLevelEntry struct {
+	UserLevel  int32 `json:"UserLevel"`
+	MaxStamina int32 `json:"MaxStamina"`
+}
+
 func LoadShopCatalog() (*ShopCatalog, error) {
-	items, err := utils.ReadTable[EntityMShopItem]("m_shop_item")
+	items, err := utils.ReadJSON[ShopItemRow]("EntityMShopItemTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load shop item table: %w", err)
 	}
-	contents, err := utils.ReadTable[EntityMShopItemContentPossession]("m_shop_item_content_possession")
+	contents, err := utils.ReadJSON[ShopContentRow]("EntityMShopItemContentPossessionTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load shop content possession table: %w", err)
 	}
-	effects, err := utils.ReadTable[EntityMShopItemContentEffect]("m_shop_item_content_effect")
+	effects, err := utils.ReadJSON[ShopContentEffectRow]("EntityMShopItemContentEffectTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load shop content effect table: %w", err)
 	}
-	userLevels, err := utils.ReadTable[EntityMUserLevel]("m_user_level")
+	userLevels, err := utils.ReadJSON[userLevelEntry]("EntityMUserLevelTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load user level table: %w", err)
 	}
-	stockRows, err := utils.ReadTable[EntityMShopItemLimitedStock]("m_shop_item_limited_stock")
+	stockRows, err := utils.ReadJSON[shopItemLimitedStockRow]("EntityMShopItemLimitedStockTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load shop item limited stock table: %w", err)
 	}
 
 	catalog := &ShopCatalog{
-		Items:            make(map[int32]EntityMShopItem, len(items)),
-		Contents:         make(map[int32][]EntityMShopItemContentPossession, len(contents)),
-		Effects:          make(map[int32][]EntityMShopItemContentEffect, len(effects)),
+		Items:            make(map[int32]ShopItemRow, len(items)),
+		Contents:         make(map[int32][]ShopContentRow, len(contents)),
+		Effects:          make(map[int32][]ShopContentEffectRow, len(effects)),
 		MaxStaminaMillis: make(map[int32]int32, len(userLevels)),
 		LimitedStock:     make(map[int32]int32, len(stockRows)),
 	}
@@ -68,15 +117,15 @@ func LoadShopCatalog() (*ShopCatalog, error) {
 		catalog.LimitedStock[row.ShopItemLimitedStockId] = row.MaxCount
 	}
 
-	shops, err := utils.ReadTable[EntityMShop]("m_shop")
+	shops, err := utils.ReadJSON[shopRow]("EntityMShopTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load shop table: %w", err)
 	}
-	cellGroups, err := utils.ReadTable[EntityMShopItemCellGroup]("m_shop_item_cell_group")
+	cellGroups, err := utils.ReadJSON[shopItemCellGroupRow]("EntityMShopItemCellGroupTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load shop item cell group table: %w", err)
 	}
-	cells, err := utils.ReadTable[EntityMShopItemCell]("m_shop_item_cell")
+	cells, err := utils.ReadJSON[shopItemCellRow]("EntityMShopItemCellTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load shop item cell table: %w", err)
 	}
@@ -86,7 +135,7 @@ func LoadShopCatalog() (*ShopCatalog, error) {
 		cellIdToItemId[c.ShopItemCellId] = c.ShopItemId
 	}
 
-	cellGroupByCGId := make(map[int32][]EntityMShopItemCellGroup, len(cellGroups))
+	cellGroupByCGId := make(map[int32][]shopItemCellGroupRow, len(cellGroups))
 	for _, cg := range cellGroups {
 		cellGroupByCGId[cg.ShopItemCellGroupId] = append(cellGroupByCGId[cg.ShopItemCellGroupId], cg)
 	}

@@ -20,10 +20,10 @@ func (h *QuestHandler) isQuestCleared(user *store.UserState, questId int32) bool
 	return quest.QuestStateType == model.UserQuestStateTypeCleared
 }
 
-func appendMissionRewards(dst []RewardGrant, src []masterdata.EntityMQuestMissionReward) []RewardGrant {
+func appendMissionRewards(dst []RewardGrant, src []masterdata.QuestMissionRewardRow) []RewardGrant {
 	for _, r := range src {
 		dst = append(dst, RewardGrant{
-			PossessionType: model.PossessionType(r.PossessionType),
+			PossessionType: r.PossessionType,
 			PossessionId:   r.PossessionId,
 			Count:          r.Count,
 		})
@@ -31,7 +31,7 @@ func appendMissionRewards(dst []RewardGrant, src []masterdata.EntityMQuestMissio
 	return dst
 }
 
-func (h *QuestHandler) firstClearRewardGroupId(user *store.UserState, questDef masterdata.EntityMQuest) int32 {
+func (h *QuestHandler) firstClearRewardGroupId(user *store.UserState, questDef masterdata.QuestRow) int32 {
 	rewardGroupId := questDef.QuestFirstClearRewardGroupId
 	for _, switchRow := range h.FirstClearRewardSwitchesByQuestId[questDef.QuestId] {
 		if h.isQuestCleared(user, switchRow.SwitchConditionClearQuestId) {
@@ -57,7 +57,7 @@ func (h *QuestHandler) evaluateFinishOutcome(user *store.UserState, questId int3
 		rewardGroupId := h.firstClearRewardGroupId(user, questDef)
 		for _, reward := range h.FirstClearRewardsByGroupId[rewardGroupId] {
 			outcome.FirstClearRewards = append(outcome.FirstClearRewards, RewardGrant{
-				PossessionType: model.PossessionType(reward.PossessionType),
+				PossessionType: reward.PossessionType,
 				PossessionId:   reward.PossessionId,
 				Count:          reward.Count,
 			})
@@ -67,7 +67,7 @@ func (h *QuestHandler) evaluateFinishOutcome(user *store.UserState, questId int3
 	if user.MainQuest.CurrentQuestFlowType == int32(model.QuestFlowTypeReplayFlow) && questDef.QuestReplayFlowRewardGroupId > 0 {
 		for _, reward := range h.ReplayFlowRewardsByGroupId[questDef.QuestReplayFlowRewardGroupId] {
 			outcome.ReplayFlowFirstClearRewards = append(outcome.ReplayFlowFirstClearRewards, RewardGrant{
-				PossessionType: model.PossessionType(reward.PossessionType),
+				PossessionType: reward.PossessionType,
 				PossessionId:   reward.PossessionId,
 				Count:          reward.Count,
 			})
@@ -78,7 +78,7 @@ func (h *QuestHandler) evaluateFinishOutcome(user *store.UserState, questId int3
 	regularMissionCount := 0
 	for _, questMissionId := range h.MissionIdsByQuestId[questId] {
 		missionDef, ok := h.MissionById[questMissionId]
-		if !ok || model.QuestMissionConditionType(missionDef.QuestMissionConditionType) == model.QuestMissionConditionTypeComplete {
+		if !ok || missionDef.QuestMissionConditionType == model.QuestMissionConditionTypeComplete {
 			continue
 		}
 		regularMissionCount++
@@ -103,7 +103,7 @@ func (h *QuestHandler) evaluateFinishOutcome(user *store.UserState, questId int3
 	if allRegularWillClear {
 		for _, questMissionId := range h.MissionIdsByQuestId[questId] {
 			missionDef, ok := h.MissionById[questMissionId]
-			if !ok || model.QuestMissionConditionType(missionDef.QuestMissionConditionType) != model.QuestMissionConditionTypeComplete {
+			if !ok || missionDef.QuestMissionConditionType != model.QuestMissionConditionTypeComplete {
 				continue
 			}
 			key := store.QuestMissionKey{QuestId: questId, QuestMissionId: questMissionId}
@@ -122,7 +122,7 @@ func (h *QuestHandler) evaluateFinishOutcome(user *store.UserState, questId int3
 	return outcome
 }
 
-func (h *QuestHandler) computeDropRewards(questDef masterdata.EntityMQuest) []RewardGrant {
+func (h *QuestHandler) computeDropRewards(questDef masterdata.QuestRow) []RewardGrant {
 	if questDef.QuestPickupRewardGroupId == 0 {
 		return nil
 	}
@@ -130,7 +130,7 @@ func (h *QuestHandler) computeDropRewards(questDef masterdata.EntityMQuest) []Re
 	for _, dropId := range h.PickupRewardIdsByGroupId[questDef.QuestPickupRewardGroupId] {
 		if bdr, ok := h.BattleDropRewardById[dropId]; ok {
 			drops = append(drops, RewardGrant{
-				PossessionType: model.PossessionType(bdr.PossessionType),
+				PossessionType: bdr.PossessionType,
 				PossessionId:   bdr.PossessionId,
 				Count:          bdr.Count,
 			})
@@ -257,7 +257,7 @@ func (h *QuestHandler) applyQuestRewards(user *store.UserState, questId int32, n
 
 	rewardGroupId := h.firstClearRewardGroupId(user, questDef)
 	for _, reward := range h.FirstClearRewardsByGroupId[rewardGroupId] {
-		h.applyRewardPossession(user, model.PossessionType(reward.PossessionType), reward.PossessionId, reward.Count, nowMillis)
+		h.applyRewardPossession(user, reward.PossessionType, reward.PossessionId, reward.Count, nowMillis)
 	}
 }
 
@@ -365,7 +365,7 @@ func (h *QuestHandler) grantWeaponStoryUnlocksForQuestScene(user *store.UserStat
 		}
 		rewardGroupId := h.firstClearRewardGroupId(user, questDef)
 		for _, reward := range h.FirstClearRewardsByGroupId[rewardGroupId] {
-			if model.PossessionType(reward.PossessionType) != model.PossessionTypeWeapon {
+			if reward.PossessionType != model.PossessionTypeWeapon {
 				continue
 			}
 			weaponId := reward.PossessionId
@@ -375,7 +375,7 @@ func (h *QuestHandler) grantWeaponStoryUnlocksForQuestScene(user *store.UserStat
 			}
 			groupId := weapon.WeaponStoryReleaseConditionGroupId
 			for _, cond := range h.ReleaseConditionsByGroupId[groupId] {
-				if model.WeaponStoryReleaseConditionType(cond.WeaponStoryReleaseConditionType) == model.WeaponStoryReleaseConditionTypeAcquisition && cond.ConditionValue == 0 {
+				if cond.WeaponStoryReleaseConditionType == model.WeaponStoryReleaseConditionTypeAcquisition && cond.ConditionValue == 0 {
 					if h.grantWeaponStoryUnlock(user, weaponId, cond.StoryIndex, nowMillis) {
 						changedIds = append(changedIds, weaponId)
 					}
@@ -387,7 +387,7 @@ func (h *QuestHandler) grantWeaponStoryUnlocksForQuestScene(user *store.UserStat
 	if resultType == model.QuestResultTypeFullResult {
 		for groupId, conditions := range h.ReleaseConditionsByGroupId {
 			for _, cond := range conditions {
-				if model.WeaponStoryReleaseConditionType(cond.WeaponStoryReleaseConditionType) == model.WeaponStoryReleaseConditionTypeQuestClear && cond.ConditionValue == questId {
+				if cond.WeaponStoryReleaseConditionType == model.WeaponStoryReleaseConditionTypeQuestClear && cond.ConditionValue == questId {
 					for _, weaponId := range h.WeaponIdsByReleaseConditionGroupId[groupId] {
 						if h.grantWeaponStoryUnlock(user, weaponId, cond.StoryIndex, nowMillis) {
 							changedIds = append(changedIds, weaponId)

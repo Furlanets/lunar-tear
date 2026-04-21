@@ -3,40 +3,19 @@
 # (generating all would put them in one package and cause name clashes).
 PROTO_USED = proto/banner.proto proto/battle.proto proto/bighunt.proto proto/cageornament.proto proto/character.proto proto/characterboard.proto proto/characterviewer.proto proto/companion.proto proto/config.proto proto/consumableitem.proto proto/contentsstory.proto proto/costume.proto proto/data.proto proto/deck.proto proto/dokan.proto proto/explore.proto proto/friend.proto proto/gacha.proto proto/gameplay.proto proto/gift.proto proto/gimmick.proto proto/labyrinth.proto proto/loginbonus.proto proto/material.proto proto/mission.proto proto/movie.proto proto/navicutin.proto proto/omikuji.proto proto/notification.proto proto/parts.proto proto/portalcage.proto proto/pvp.proto proto/quest.proto proto/reward.proto proto/shop.proto proto/sidestoryquest.proto proto/tutorial.proto proto/user.proto proto/weapon.proto
 
-EXE =
-ifeq ($(OS),Windows_NT)
-  EXE = .exe
-endif
-
 proto:
 	protoc -I . $(PROTO_USED) --go_out=. --go_opt=module=lunar-tear/server --go-grpc_out=. --go-grpc_opt=module=lunar-tear/server
 	@echo "Generated in gen/proto/"
 
 build:
-	go build -o lunar-tear$(EXE) ./cmd/lunar-tear
-
-build-cdn:
-	go build -o octo-cdn$(EXE) ./cmd/octo-cdn
+	go build -o lunar-tear ./cmd/lunar-tear
 
 build-import:
-	go build -o import-snapshot$(EXE) ./cmd/import-snapshot
-
-build-auth:
-	go build -o auth-server$(EXE) ./cmd/auth-server
-
-build-claim-account:
-	go build -o claim-account$(EXE) ./cmd/claim-account
-
-dev:
-	go run ./cmd/dev $(ARGS)
+	go build -o import-snapshot ./cmd/import-snapshot
 
 migrate:
-ifeq ($(OS),Windows_NT)
-	if not exist db mkdir db
-else
 	mkdir -p db
-endif
-	goose -dir migrations -allow-missing sqlite3 db/game.db up
+	goose -dir migrations sqlite3 db/game.db up
 
 import:
 ifndef SNAPSHOT
@@ -47,4 +26,4 @@ ifndef UUID
 endif
 	go run ./cmd/import-snapshot --snapshot $(SNAPSHOT) --uuid $(UUID)
 
-.PHONY: proto build build-cdn build-auth build-import build-claim-account dev migrate import
+.PHONY: proto build build-import migrate import

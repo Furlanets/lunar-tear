@@ -4,12 +4,11 @@ import (
 	"sort"
 
 	"lunar-tear/server/internal/store"
-	"lunar-tear/server/internal/utils"
 )
 
 func init() {
 	register("IUserBigHuntProgressStatus", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(map[string]any{
+		s, _ := encodeJSONMaps(map[string]any{
 			"userId":                    user.UserId,
 			"currentBigHuntBossQuestId": user.BigHuntProgress.CurrentBigHuntBossQuestId,
 			"currentBigHuntQuestId":     user.BigHuntProgress.CurrentBigHuntQuestId,
@@ -40,7 +39,7 @@ func init() {
 				"latestVersion":          ms.LatestVersion,
 			})
 		}
-		s, _ := utils.EncodeJSONMaps(records...)
+		s, _ := encodeJSONMaps(records...)
 		return s
 	})
 
@@ -64,7 +63,7 @@ func init() {
 				"latestVersion":           st.LatestVersion,
 			})
 		}
-		s, _ := utils.EncodeJSONMaps(records...)
+		s, _ := encodeJSONMaps(records...)
 		return s
 	})
 
@@ -98,7 +97,7 @@ func init() {
 				"latestVersion":          ms.LatestVersion,
 			})
 		}
-		s, _ := utils.EncodeJSONMaps(records...)
+		s, _ := encodeJSONMaps(records...)
 		return s
 	})
 
@@ -131,7 +130,7 @@ func init() {
 				"latestVersion":        ms.LatestVersion,
 			})
 		}
-		s, _ := utils.EncodeJSONMaps(records...)
+		s, _ := encodeJSONMaps(records...)
 		return s
 	})
 
@@ -154,7 +153,7 @@ func init() {
 				"latestVersion":          ws.LatestVersion,
 			})
 		}
-		s, _ := utils.EncodeJSONMaps(records...)
+		s, _ := encodeJSONMaps(records...)
 		return s
 	})
 }

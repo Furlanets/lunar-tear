@@ -4,24 +4,23 @@ import (
 	"sort"
 
 	"lunar-tear/server/internal/store"
-	"lunar-tear/server/internal/utils"
 )
 
 func init() {
 	register("IUserGimmick", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedGimmickRecords(user)...)
+		s, _ := encodeJSONMaps(sortedGimmickRecords(user)...)
 		return s
 	})
 	register("IUserGimmickOrnamentProgress", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedGimmickOrnamentProgressRecords(user)...)
+		s, _ := encodeJSONMaps(sortedGimmickOrnamentProgressRecords(user)...)
 		return s
 	})
 	register("IUserGimmickSequence", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedGimmickSequenceRecords(user)...)
+		s, _ := encodeJSONMaps(sortedGimmickSequenceRecords(user)...)
 		return s
 	})
 	register("IUserGimmickUnlock", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedGimmickUnlockRecords(user)...)
+		s, _ := encodeJSONMaps(sortedGimmickUnlockRecords(user)...)
 		return s
 	})
 }

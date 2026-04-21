@@ -7,6 +7,11 @@ import (
 	"lunar-tear/server/internal/utils"
 )
 
+type configRow struct {
+	ConfigKey string `json:"ConfigKey"`
+	Value     string `json:"Value"`
+}
+
 type GameConfig struct {
 	ConsumableItemIdForGold               int32
 	ConsumableItemIdForMedal              int32
@@ -36,7 +41,7 @@ type GameConfig struct {
 }
 
 func LoadGameConfig() (*GameConfig, error) {
-	rows, err := utils.ReadTable[EntityMConfig]("m_config")
+	rows, err := utils.ReadJSON[configRow]("EntityMConfigTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load config table: %w", err)
 	}

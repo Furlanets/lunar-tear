@@ -4,7 +4,6 @@ import (
 	"sort"
 
 	"lunar-tear/server/internal/store"
-	"lunar-tear/server/internal/utils"
 )
 
 func sortedQuestRecords(user store.UserState) []map[string]any {
@@ -61,15 +60,15 @@ func sortedQuestMissionRecords(user store.UserState) []map[string]any {
 
 func init() {
 	register("IUserQuest", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedQuestRecords(user)...)
+		s, _ := encodeJSONMaps(sortedQuestRecords(user)...)
 		return s
 	})
 	register("IUserQuestMission", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedQuestMissionRecords(user)...)
+		s, _ := encodeJSONMaps(sortedQuestMissionRecords(user)...)
 		return s
 	})
 	register("IUserMainQuestFlowStatus", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(map[string]any{
+		s, _ := encodeJSONMaps(map[string]any{
 			"userId":               user.UserId,
 			"currentQuestFlowType": user.MainQuest.CurrentQuestFlowType,
 			"latestVersion":        user.MainQuest.LatestVersion,
@@ -77,7 +76,7 @@ func init() {
 		return s
 	})
 	register("IUserMainQuestMainFlowStatus", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(map[string]any{
+		s, _ := encodeJSONMaps(map[string]any{
 			"userId":                  user.UserId,
 			"currentMainQuestRouteId": user.MainQuest.CurrentMainQuestRouteId,
 			"currentQuestSceneId":     user.MainQuest.CurrentQuestSceneId,
@@ -88,7 +87,7 @@ func init() {
 		return s
 	})
 	register("IUserMainQuestProgressStatus", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(map[string]any{
+		s, _ := encodeJSONMaps(map[string]any{
 			"userId":               user.UserId,
 			"currentQuestSceneId":  user.MainQuest.ProgressQuestSceneId,
 			"headQuestSceneId":     user.MainQuest.ProgressHeadQuestSceneId,
@@ -98,7 +97,7 @@ func init() {
 		return s
 	})
 	register("IUserMainQuestSeasonRoute", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(map[string]any{
+		s, _ := encodeJSONMaps(map[string]any{
 			"userId":            user.UserId,
 			"mainQuestSeasonId": user.MainQuest.MainQuestSeasonId,
 			"mainQuestRouteId":  user.MainQuest.CurrentMainQuestRouteId,
@@ -107,7 +106,7 @@ func init() {
 		return s
 	})
 	register("IUserEventQuestProgressStatus", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(map[string]any{
+		s, _ := encodeJSONMaps(map[string]any{
 			"userId":                     user.UserId,
 			"currentEventQuestChapterId": user.EventQuest.CurrentEventQuestChapterId,
 			"currentQuestId":             user.EventQuest.CurrentQuestId,
@@ -118,7 +117,7 @@ func init() {
 		return s
 	})
 	register("IUserExtraQuestProgressStatus", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(map[string]any{
+		s, _ := encodeJSONMaps(map[string]any{
 			"userId":              user.UserId,
 			"currentQuestId":      user.ExtraQuest.CurrentQuestId,
 			"currentQuestSceneId": user.ExtraQuest.CurrentQuestSceneId,
@@ -128,7 +127,7 @@ func init() {
 		return s
 	})
 	register("IUserMainQuestReplayFlowStatus", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(map[string]any{
+		s, _ := encodeJSONMaps(map[string]any{
 			"userId":                  user.UserId,
 			"currentHeadQuestSceneId": user.MainQuest.ReplayFlowHeadQuestSceneId,
 			"currentQuestSceneId":     user.MainQuest.ReplayFlowCurrentQuestSceneId,
@@ -137,7 +136,7 @@ func init() {
 		return s
 	})
 	register("IUserSideStoryQuestSceneProgressStatus", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(map[string]any{
+		s, _ := encodeJSONMaps(map[string]any{
 			"userId":                       user.UserId,
 			"currentSideStoryQuestId":      user.SideStoryActiveProgress.CurrentSideStoryQuestId,
 			"currentSideStoryQuestSceneId": user.SideStoryActiveProgress.CurrentSideStoryQuestSceneId,
@@ -165,7 +164,7 @@ func init() {
 				"latestVersion":             progress.LatestVersion,
 			})
 		}
-		s, _ := utils.EncodeJSONMaps(records...)
+		s, _ := encodeJSONMaps(records...)
 		return s
 	})
 	register("IUserQuestLimitContentStatus", func(user store.UserState) string {
@@ -188,7 +187,7 @@ func init() {
 				"latestVersion":               st.LatestVersion,
 			})
 		}
-		s, _ := utils.EncodeJSONMaps(records...)
+		s, _ := encodeJSONMaps(records...)
 		return s
 	})
 	registerStatic(

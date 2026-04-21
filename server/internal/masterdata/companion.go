@@ -6,6 +6,23 @@ import (
 	"lunar-tear/server/internal/utils"
 )
 
+type companionRow struct {
+	CompanionId           int32 `json:"CompanionId"`
+	CompanionCategoryType int32 `json:"CompanionCategoryType"`
+}
+
+type companionCategoryRow struct {
+	CompanionCategoryType              int32 `json:"CompanionCategoryType"`
+	EnhancementCostNumericalFunctionId int32 `json:"EnhancementCostNumericalFunctionId"`
+}
+
+type companionEnhancementMaterialRow struct {
+	CompanionCategoryType int32 `json:"CompanionCategoryType"`
+	Level                 int32 `json:"Level"`
+	MaterialId            int32 `json:"MaterialId"`
+	Count                 int32 `json:"Count"`
+}
+
 type CompanionLevelKey struct {
 	CategoryType int32
 	Level        int32
@@ -17,23 +34,23 @@ type CompanionMaterialCost struct {
 }
 
 type CompanionCatalog struct {
-	CompanionById      map[int32]EntityMCompanion
+	CompanionById      map[int32]companionRow
 	GoldCostByCategory map[int32]NumericalFunc
 	MaterialsByKey     map[CompanionLevelKey]CompanionMaterialCost
 }
 
 func LoadCompanionCatalog() (*CompanionCatalog, error) {
-	companions, err := utils.ReadTable[EntityMCompanion]("m_companion")
+	companions, err := utils.ReadJSON[companionRow]("EntityMCompanionTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load companion table: %w", err)
 	}
 
-	categories, err := utils.ReadTable[EntityMCompanionCategory]("m_companion_category")
+	categories, err := utils.ReadJSON[companionCategoryRow]("EntityMCompanionCategoryTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load companion category table: %w", err)
 	}
 
-	materials, err := utils.ReadTable[EntityMCompanionEnhancementMaterial]("m_companion_enhancement_material")
+	materials, err := utils.ReadJSON[companionEnhancementMaterialRow]("EntityMCompanionEnhancementMaterialTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load companion enhancement material table: %w", err)
 	}
@@ -43,7 +60,7 @@ func LoadCompanionCatalog() (*CompanionCatalog, error) {
 		return nil, fmt.Errorf("load function resolver: %w", err)
 	}
 
-	companionById := make(map[int32]EntityMCompanion, len(companions))
+	companionById := make(map[int32]companionRow, len(companions))
 	for _, c := range companions {
 		companionById[c.CompanionId] = c
 	}

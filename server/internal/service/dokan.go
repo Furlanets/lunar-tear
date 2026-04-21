@@ -7,6 +7,7 @@ import (
 
 	pb "lunar-tear/server/gen/proto"
 	"lunar-tear/server/internal/store"
+	"lunar-tear/server/internal/userdata"
 )
 
 type DokanServiceServer struct {
@@ -22,8 +23,8 @@ func NewDokanServiceServer(users store.UserRepository, sessions store.SessionRep
 func (s *DokanServiceServer) RegisterDokanConfirmed(ctx context.Context, req *pb.RegisterDokanConfirmedRequest) (*pb.RegisterDokanConfirmedResponse, error) {
 	log.Printf("[DokanService] RegisterDokanConfirmed: dokanIds=%v", req.DokanId)
 
-	userId := CurrentUserId(ctx, s.users, s.sessions)
-	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+	userId := currentUserId(ctx, s.users, s.sessions)
+	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
 		for _, id := range req.DokanId {
 			user.DokanConfirmed[id] = true
 		}
@@ -32,5 +33,9 @@ func (s *DokanServiceServer) RegisterDokanConfirmed(ctx context.Context, req *pb
 		return nil, fmt.Errorf("update user: %w", err)
 	}
 
-	return &pb.RegisterDokanConfirmedResponse{}, nil
+	diff := userdata.BuildDiffFromTables(userdata.ProjectTables(snapshot, []string{"IUserDokan"}))
+
+	return &pb.RegisterDokanConfirmedResponse{
+		DiffUserData: diff,
+	}, nil
 }

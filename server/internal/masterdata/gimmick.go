@@ -9,6 +9,14 @@ import (
 	"lunar-tear/server/internal/utils"
 )
 
+type gimmickScheduleRow struct {
+	GimmickSequenceScheduleId  int32 `json:"GimmickSequenceScheduleId"`
+	StartDatetime              int64 `json:"StartDatetime"`
+	EndDatetime                int64 `json:"EndDatetime"`
+	FirstGimmickSequenceId     int32 `json:"FirstGimmickSequenceId"`
+	ReleaseEvaluateConditionId int32 `json:"ReleaseEvaluateConditionId"`
+}
+
 type gimmickScheduleEntry struct {
 	ScheduleId      int32
 	StartDatetime   int64
@@ -22,7 +30,7 @@ type GimmickCatalog struct {
 }
 
 func LoadGimmickCatalog(resolver *ConditionResolver) (*GimmickCatalog, error) {
-	rows, err := utils.ReadTable[EntityMGimmickSequenceSchedule]("m_gimmick_sequence_schedule")
+	rows, err := utils.ReadJSON[gimmickScheduleRow]("EntityMGimmickSequenceScheduleTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load gimmick sequence schedule table: %w", err)
 	}

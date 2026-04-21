@@ -8,6 +8,7 @@ import (
 	pb "lunar-tear/server/gen/proto"
 	"lunar-tear/server/internal/gametime"
 	"lunar-tear/server/internal/store"
+	"lunar-tear/server/internal/userdata"
 )
 
 type ContentsStoryServiceServer struct {
@@ -23,15 +24,19 @@ func NewContentsStoryServiceServer(users store.UserRepository, sessions store.Se
 func (s *ContentsStoryServiceServer) RegisterPlayed(ctx context.Context, req *pb.ContentsStoryRegisterPlayedRequest) (*pb.ContentsStoryRegisterPlayedResponse, error) {
 	log.Printf("[ContentsStoryService] RegisterPlayed: contentsStoryId=%d", req.ContentsStoryId)
 
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 	nowMillis := gametime.NowMillis()
 
-	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
 		user.ContentsStories[req.ContentsStoryId] = nowMillis
 	})
 	if err != nil {
 		return nil, fmt.Errorf("update user: %w", err)
 	}
 
-	return &pb.ContentsStoryRegisterPlayedResponse{}, nil
+	diff := userdata.BuildDiffFromTables(userdata.ProjectTables(snapshot, []string{"IUserContentsStory"}))
+
+	return &pb.ContentsStoryRegisterPlayedResponse{
+		DiffUserData: diff,
+	}, nil
 }

@@ -46,28 +46,58 @@ type GachaCatalog struct {
 	ShopFeaturedByMedal map[int32][]ShopFeaturedEntry // consumableId -> paired entries
 }
 
+type costumePoolRow struct {
+	CostumeId          int32 `json:"CostumeId"`
+	CharacterId        int32 `json:"CharacterId"`
+	SkillfulWeaponType int32 `json:"SkillfulWeaponType"`
+	RarityType         int32 `json:"RarityType"`
+}
+
+type weaponPoolRow struct {
+	WeaponId          int32 `json:"WeaponId"`
+	WeaponType        int32 `json:"WeaponType"`
+	RarityType        int32 `json:"RarityType"`
+	IsRestrictDiscard bool  `json:"IsRestrictDiscard"`
+}
+
+type catalogCostumeRow struct {
+	CostumeId     int32 `json:"CostumeId"`
+	CatalogTermId int32 `json:"CatalogTermId"`
+}
+
+type catalogWeaponRow struct {
+	WeaponId      int32 `json:"WeaponId"`
+	CatalogTermId int32 `json:"CatalogTermId"`
+}
+
+type materialPoolRow struct {
+	MaterialId   int32 `json:"MaterialId"`
+	MaterialType int32 `json:"MaterialType"`
+	RarityType   int32 `json:"RarityType"`
+}
+
 func LoadGachaPool() (*GachaCatalog, error) {
-	costumes, err := utils.ReadTable[EntityMCostume]("m_costume")
+	costumes, err := utils.ReadJSON[costumePoolRow]("EntityMCostumeTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load costume table: %w", err)
 	}
-	weapons, err := utils.ReadTable[EntityMWeapon]("m_weapon")
+	weapons, err := utils.ReadJSON[weaponPoolRow]("EntityMWeaponTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load weapon table: %w", err)
 	}
-	catalogCostumes, err := utils.ReadTable[EntityMCatalogCostume]("m_catalog_costume")
+	catalogCostumes, err := utils.ReadJSON[catalogCostumeRow]("EntityMCatalogCostumeTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load catalog costume table: %w", err)
 	}
-	catalogWeapons, err := utils.ReadTable[EntityMCatalogWeapon]("m_catalog_weapon")
+	catalogWeapons, err := utils.ReadJSON[catalogWeaponRow]("EntityMCatalogWeaponTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load catalog weapon table: %w", err)
 	}
-	materials, err := utils.ReadTable[EntityMMaterial]("m_material")
+	materials, err := utils.ReadJSON[materialPoolRow]("EntityMMaterialTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load material table: %w", err)
 	}
-	evoGroupRows, err := utils.ReadTable[EntityMWeaponEvolutionGroup]("m_weapon_evolution_group")
+	evoGroupRows, err := utils.ReadJSON[WeaponEvolutionGroupRow]("EntityMWeaponEvolutionGroupTable.json")
 	if err != nil {
 		return nil, fmt.Errorf("load weapon evolution group table: %w", err)
 	}
@@ -384,8 +414,8 @@ func (pool *GachaCatalog) BuildBannerPools(entries []store.GachaCatalogEntry) {
 		len(pool.BannerPools), len(allFeaturedCostumes), len(allFeaturedWeapons))
 }
 
-func buildEvolvedWeaponSet(rows []EntityMWeaponEvolutionGroup) map[int32]bool {
-	grouped := make(map[int32][]EntityMWeaponEvolutionGroup)
+func buildEvolvedWeaponSet(rows []WeaponEvolutionGroupRow) map[int32]bool {
+	grouped := make(map[int32][]WeaponEvolutionGroupRow)
 	for _, r := range rows {
 		grouped[r.WeaponEvolutionGroupId] = append(grouped[r.WeaponEvolutionGroupId], r)
 	}

@@ -53,7 +53,7 @@ func BuildGranter(catalog *masterdata.QuestCatalog) *store.PossessionGranter {
 		for i, r := range rows {
 			conds[i] = store.WeaponStoryReleaseCond{
 				StoryIndex:                      r.StoryIndex,
-				WeaponStoryReleaseConditionType: model.WeaponStoryReleaseConditionType(r.WeaponStoryReleaseConditionType),
+				WeaponStoryReleaseConditionType: r.WeaponStoryReleaseConditionType,
 				ConditionValue:                  r.ConditionValue,
 			}
 		}

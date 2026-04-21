@@ -9,6 +9,11 @@ import (
 	"lunar-tear/server/internal/utils"
 )
 
+type characterViewerField struct {
+	CharacterViewerFieldId     int32 `json:"CharacterViewerFieldId"`
+	ReleaseEvaluateConditionId int32 `json:"ReleaseEvaluateConditionId"`
+}
+
 type characterViewerFieldEntry struct {
 	FieldId         int32
 	RequiredQuestId int32
@@ -34,7 +39,7 @@ func (c *CharacterViewerCatalog) ReleasedFieldIds(user store.UserState) []int32 
 }
 
 func LoadCharacterViewerCatalog(resolver *ConditionResolver) *CharacterViewerCatalog {
-	fields, err := utils.ReadTable[EntityMCharacterViewerField]("m_character_viewer_field")
+	fields, err := utils.ReadJSON[characterViewerField]("EntityMCharacterViewerFieldTable.json")
 	if err != nil {
 		log.Fatalf("load character viewer field table: %v", err)
 	}

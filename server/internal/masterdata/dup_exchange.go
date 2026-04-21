@@ -5,10 +5,17 @@ import (
 	"lunar-tear/server/internal/utils"
 )
 
+type costumeDupRow struct {
+	CostumeId      int32 `json:"CostumeId"`
+	PossessionType int32 `json:"PossessionType"`
+	PossessionId   int32 `json:"PossessionId"`
+	Count          int32 `json:"Count"`
+}
+
 func LoadDupExchange() (map[int32][]model.DupExchangeEntry, error) {
 	result := make(map[int32][]model.DupExchangeEntry)
 
-	costumeRows, err := utils.ReadTable[EntityMCostumeDuplicationExchangePossessionGroup]("m_costume_duplication_exchange_possession_group")
+	costumeRows, err := utils.ReadJSON[costumeDupRow]("EntityMCostumeDuplicationExchangePossessionGroupTable.json")
 	if err != nil {
 		return nil, err
 	}
@@ -23,10 +30,20 @@ func LoadDupExchange() (map[int32][]model.DupExchangeEntry, error) {
 	return result, nil
 }
 
+type lbMaterialRow struct {
+	CostumeLimitBreakMaterialGroupId int32 `json:"CostumeLimitBreakMaterialGroupId"`
+	MaterialId                       int32 `json:"MaterialId"`
+}
+
+type costumeLBRef struct {
+	CostumeId                        int32 `json:"CostumeId"`
+	CostumeLimitBreakMaterialGroupId int32 `json:"CostumeLimitBreakMaterialGroupId"`
+}
+
 const dupExchangeFallbackCount int32 = 10
 
 func EnrichDupExchange(dupMap map[int32][]model.DupExchangeEntry, pool *GachaCatalog) (int, error) {
-	lbRows, err := utils.ReadTable[EntityMCostumeLimitBreakMaterialGroup]("m_costume_limit_break_material_group")
+	lbRows, err := utils.ReadJSON[lbMaterialRow]("EntityMCostumeLimitBreakMaterialGroupTable.json")
 	if err != nil {
 		return 0, err
 	}
@@ -35,7 +52,7 @@ func EnrichDupExchange(dupMap map[int32][]model.DupExchangeEntry, pool *GachaCat
 		groupToMaterial[r.CostumeLimitBreakMaterialGroupId] = r.MaterialId
 	}
 
-	costumeRows, err := utils.ReadTable[EntityMCostume]("m_costume")
+	costumeRows, err := utils.ReadJSON[costumeLBRef]("EntityMCostumeTable.json")
 	if err != nil {
 		return 0, err
 	}

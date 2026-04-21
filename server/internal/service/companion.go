@@ -9,9 +9,16 @@ import (
 	"lunar-tear/server/internal/gametime"
 	"lunar-tear/server/internal/masterdata"
 	"lunar-tear/server/internal/store"
+	"lunar-tear/server/internal/userdata"
 )
 
 const companionMaxLevel = int32(50)
+
+var companionDiffTables = []string{
+	"IUserCompanion",
+	"IUserMaterial",
+	"IUserConsumableItem",
+}
 
 type CompanionServiceServer struct {
 	pb.UnimplementedCompanionServiceServer
@@ -28,10 +35,10 @@ func NewCompanionServiceServer(users store.UserRepository, sessions store.Sessio
 func (s *CompanionServiceServer) Enhance(ctx context.Context, req *pb.CompanionEnhanceRequest) (*pb.CompanionEnhanceResponse, error) {
 	log.Printf("[CompanionService] Enhance: uuid=%s addLevel=%d", req.UserCompanionUuid, req.AddLevelCount)
 
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 	nowMillis := gametime.NowMillis()
 
-	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
 		companion, ok := user.Companions[req.UserCompanionUuid]
 		if !ok {
 			log.Printf("[CompanionService] Enhance: companion uuid=%s not found", req.UserCompanionUuid)
@@ -70,5 +77,9 @@ func (s *CompanionServiceServer) Enhance(ctx context.Context, req *pb.CompanionE
 		return nil, fmt.Errorf("companion enhance: %w", err)
 	}
 
-	return &pb.CompanionEnhanceResponse{}, nil
+	diff := userdata.BuildDiffFromTables(userdata.ProjectTables(snapshot, companionDiffTables))
+
+	return &pb.CompanionEnhanceResponse{
+		DiffUserData: diff,
+	}, nil
 }

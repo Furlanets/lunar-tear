@@ -16,13 +16,13 @@ const (
 	defaultChargeMoneyThisMonth = int64(0)
 )
 
-func SeedUserState(userId int64, uuid string, nowMillis int64, platform model.ClientPlatform) *UserState {
+func SeedUserState(userId int64, uuid string, nowMillis int64) *UserState {
 	user := &UserState{
 		UserId:               userId,
 		Uuid:                 uuid,
 		PlayerId:             userId,
-		OsType:               platform.OsType,
-		PlatformType:         platform.PlatformType,
+		OsType:               2,
+		PlatformType:         2,
 		UserRestrictionType:  0,
 		RegisterDatetime:     nowMillis,
 		GameStartDatetime:    nowMillis,

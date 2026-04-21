@@ -11,7 +11,34 @@ import (
 	"lunar-tear/server/internal/masterdata"
 	"lunar-tear/server/internal/model"
 	"lunar-tear/server/internal/store"
+	"lunar-tear/server/internal/userdata"
 )
+
+var weaponDiffTables = []string{
+	"IUserWeapon",
+	"IUserWeaponSkill",
+	"IUserWeaponAbility",
+	"IUserWeaponAwaken",
+	"IUserMaterial",
+	"IUserConsumableItem",
+}
+
+var limitBreakDiffTables = []string{
+	"IUserWeapon",
+	"IUserWeaponSkill",
+	"IUserWeaponAbility",
+	"IUserWeaponAwaken",
+	"IUserMaterial",
+	"IUserConsumableItem",
+	"IUserWeaponNote",
+}
+
+var weaponAwakenDiffTables = []string{
+	"IUserWeapon",
+	"IUserWeaponAwaken",
+	"IUserMaterial",
+	"IUserConsumableItem",
+}
 
 type WeaponServiceServer struct {
 	pb.UnimplementedWeaponServiceServer
@@ -28,10 +55,10 @@ func NewWeaponServiceServer(users store.UserRepository, sessions store.SessionRe
 func (s *WeaponServiceServer) Protect(ctx context.Context, req *pb.ProtectRequest) (*pb.ProtectResponse, error) {
 	log.Printf("[WeaponService] Protect: uuids=%v", req.UserWeaponUuid)
 
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 	nowMillis := gametime.NowMillis()
 
-	s.users.UpdateUser(userId, func(user *store.UserState) {
+	snapshot, _ := s.users.UpdateUser(userId, func(user *store.UserState) {
 		for _, uuid := range req.UserWeaponUuid {
 			weapon, ok := user.Weapons[uuid]
 			if !ok {
@@ -44,16 +71,17 @@ func (s *WeaponServiceServer) Protect(ctx context.Context, req *pb.ProtectReques
 		}
 	})
 
-	return &pb.ProtectResponse{}, nil
+	diff := userdata.BuildDiffFromTables(userdata.ProjectTables(snapshot, []string{"IUserWeapon"}))
+	return &pb.ProtectResponse{DiffUserData: diff}, nil
 }
 
 func (s *WeaponServiceServer) Unprotect(ctx context.Context, req *pb.UnprotectRequest) (*pb.UnprotectResponse, error) {
 	log.Printf("[WeaponService] Unprotect: uuids=%v", req.UserWeaponUuid)
 
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 	nowMillis := gametime.NowMillis()
 
-	s.users.UpdateUser(userId, func(user *store.UserState) {
+	snapshot, _ := s.users.UpdateUser(userId, func(user *store.UserState) {
 		for _, uuid := range req.UserWeaponUuid {
 			weapon, ok := user.Weapons[uuid]
 			if !ok {
@@ -66,16 +94,18 @@ func (s *WeaponServiceServer) Unprotect(ctx context.Context, req *pb.UnprotectRe
 		}
 	})
 
-	return &pb.UnprotectResponse{}, nil
+	diff := userdata.BuildDiffFromTables(userdata.ProjectTables(snapshot, []string{"IUserWeapon"}))
+	return &pb.UnprotectResponse{DiffUserData: diff}, nil
 }
 
 func (s *WeaponServiceServer) EnhanceByMaterial(ctx context.Context, req *pb.EnhanceByMaterialRequest) (*pb.EnhanceByMaterialResponse, error) {
 	log.Printf("[WeaponService] EnhanceByMaterial: uuid=%s materials=%v", req.UserWeaponUuid, req.Materials)
 
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 	nowMillis := gametime.NowMillis()
 
-	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+	var changedStoryIds []int32
+	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
 		weapon, ok := user.Weapons[req.UserWeaponUuid]
 		if !ok {
 			log.Printf("[WeaponService] EnhanceByMaterial: weapon uuid=%s not found", req.UserWeaponUuid)
@@ -127,24 +157,35 @@ func (s *WeaponServiceServer) EnhanceByMaterial(ctx context.Context, req *pb.Enh
 		user.Weapons[req.UserWeaponUuid] = weapon
 		log.Printf("[WeaponService] EnhanceByMaterial: weaponId=%d +%d exp -> total=%d level=%d", weapon.WeaponId, totalExp, weapon.Exp, weapon.Level)
 
-		s.checkWeaponStoryUnlocks(user, weapon.WeaponId, weapon.Level, nowMillis)
+		changedStoryIds = s.checkWeaponStoryUnlocks(user, weapon.WeaponId, weapon.Level, nowMillis)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("weapon enhance by material: %w", err)
 	}
 
+	diff := userdata.BuildDiffFromTables(userdata.ProjectTables(snapshot, weaponDiffTables))
+	userdata.AddWeaponStoryDiff(diff, snapshot, changedStoryIds)
+
 	return &pb.EnhanceByMaterialResponse{
 		IsGreatSuccess:         false,
 		SurplusEnhanceMaterial: map[int32]int32{},
+		DiffUserData:           diff,
 	}, nil
 }
 
 func (s *WeaponServiceServer) Sell(ctx context.Context, req *pb.SellRequest) (*pb.SellResponse, error) {
 	log.Printf("[WeaponService] Sell: uuids=%v", req.UserWeaponUuid)
 
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 
-	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+	oldUser, _ := s.users.LoadUser(userId)
+	tracker := userdata.NewDeleteTracker().
+		Track("IUserWeapon", oldUser, userdata.SortedWeaponRecords, []string{"userId", "userWeaponUuid"}).
+		Track("IUserWeaponSkill", oldUser, userdata.SortedWeaponSkillRecords, []string{"userId", "userWeaponUuid", "slotNumber"}).
+		Track("IUserWeaponAbility", oldUser, userdata.SortedWeaponAbilityRecords, []string{"userId", "userWeaponUuid", "slotNumber"}).
+		Track("IUserWeaponAwaken", oldUser, userdata.SortedWeaponAwakenRecords, []string{"userId", "userWeaponUuid"})
+
+	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
 		totalGold := int32(0)
 		for _, uuid := range req.UserWeaponUuid {
 			weapon, ok := user.Weapons[uuid]
@@ -184,16 +225,21 @@ func (s *WeaponServiceServer) Sell(ctx context.Context, req *pb.SellRequest) (*p
 		return nil, fmt.Errorf("weapon sell: %w", err)
 	}
 
-	return &pb.SellResponse{}, nil
+	sellDiffTables := []string{"IUserWeapon", "IUserWeaponSkill", "IUserWeaponAbility", "IUserWeaponAwaken", "IUserConsumableItem"}
+	tables := userdata.ProjectTables(snapshot, sellDiffTables)
+	diff := tracker.Apply(snapshot, tables)
+
+	return &pb.SellResponse{DiffUserData: diff}, nil
 }
 
 func (s *WeaponServiceServer) Evolve(ctx context.Context, req *pb.EvolveRequest) (*pb.EvolveResponse, error) {
 	log.Printf("[WeaponService] Evolve: uuid=%s", req.UserWeaponUuid)
 
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 	nowMillis := gametime.NowMillis()
 
-	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+	var changedStoryIds []int32
+	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
 		weapon, ok := user.Weapons[req.UserWeaponUuid]
 		if !ok {
 			log.Printf("[WeaponService] Evolve: weapon uuid=%s not found", req.UserWeaponUuid)
@@ -252,22 +298,25 @@ func (s *WeaponServiceServer) Evolve(ctx context.Context, req *pb.EvolveRequest)
 
 		log.Printf("[WeaponService] Evolve: weaponId %d -> %d", wm.WeaponId, evolvedId)
 
-		s.checkWeaponStoryUnlocks(user, evolvedId, weapon.Level, nowMillis)
+		changedStoryIds = s.checkWeaponStoryUnlocks(user, evolvedId, weapon.Level, nowMillis)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("weapon evolve: %w", err)
 	}
 
-	return &pb.EvolveResponse{}, nil
+	diff := userdata.BuildDiffFromTables(userdata.ProjectTables(snapshot, weaponDiffTables))
+	userdata.AddWeaponStoryDiff(diff, snapshot, changedStoryIds)
+
+	return &pb.EvolveResponse{DiffUserData: diff}, nil
 }
 
 func (s *WeaponServiceServer) EnhanceSkill(ctx context.Context, req *pb.EnhanceSkillRequest) (*pb.EnhanceSkillResponse, error) {
 	log.Printf("[WeaponService] EnhanceSkill: uuid=%s skillId=%d addLevel=%d", req.UserWeaponUuid, req.SkillId, req.AddLevelCount)
 
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 	nowMillis := gametime.NowMillis()
 
-	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
 		weapon, ok := user.Weapons[req.UserWeaponUuid]
 		if !ok {
 			log.Printf("[WeaponService] EnhanceSkill: weapon uuid=%s not found", req.UserWeaponUuid)
@@ -281,7 +330,7 @@ func (s *WeaponServiceServer) EnhanceSkill(ctx context.Context, req *pb.EnhanceS
 		}
 
 		groupRows := s.catalog.SkillGroupsByGroupId[wm.WeaponSkillGroupId]
-		var skillGroup *masterdata.EntityMWeaponSkillGroup
+		var skillGroup *masterdata.WeaponSkillGroupRow
 		for i := range groupRows {
 			if groupRows[i].SkillId == req.SkillId {
 				skillGroup = &groupRows[i]
@@ -354,16 +403,18 @@ func (s *WeaponServiceServer) EnhanceSkill(ctx context.Context, req *pb.EnhanceS
 		return nil, fmt.Errorf("weapon enhance skill: %w", err)
 	}
 
-	return &pb.EnhanceSkillResponse{}, nil
+	diff := userdata.BuildDiffFromTables(userdata.ProjectTables(snapshot, weaponDiffTables))
+
+	return &pb.EnhanceSkillResponse{DiffUserData: diff}, nil
 }
 
 func (s *WeaponServiceServer) EnhanceAbility(ctx context.Context, req *pb.EnhanceAbilityRequest) (*pb.EnhanceAbilityResponse, error) {
 	log.Printf("[WeaponService] EnhanceAbility: uuid=%s abilityId=%d addLevel=%d", req.UserWeaponUuid, req.AbilityId, req.AddLevelCount)
 
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 	nowMillis := gametime.NowMillis()
 
-	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
 		weapon, ok := user.Weapons[req.UserWeaponUuid]
 		if !ok {
 			log.Printf("[WeaponService] EnhanceAbility: weapon uuid=%s not found", req.UserWeaponUuid)
@@ -377,7 +428,7 @@ func (s *WeaponServiceServer) EnhanceAbility(ctx context.Context, req *pb.Enhanc
 		}
 
 		groupRows := s.catalog.AbilityGroupsByGroupId[wm.WeaponAbilityGroupId]
-		var abilityGroup *masterdata.EntityMWeaponAbilityGroup
+		var abilityGroup *masterdata.WeaponAbilityGroupRow
 		for i := range groupRows {
 			if groupRows[i].AbilityId == req.AbilityId {
 				abilityGroup = &groupRows[i]
@@ -450,16 +501,18 @@ func (s *WeaponServiceServer) EnhanceAbility(ctx context.Context, req *pb.Enhanc
 		return nil, fmt.Errorf("weapon enhance ability: %w", err)
 	}
 
-	return &pb.EnhanceAbilityResponse{}, nil
+	diff := userdata.BuildDiffFromTables(userdata.ProjectTables(snapshot, weaponDiffTables))
+
+	return &pb.EnhanceAbilityResponse{DiffUserData: diff}, nil
 }
 
 func (s *WeaponServiceServer) LimitBreakByMaterial(ctx context.Context, req *pb.LimitBreakByMaterialRequest) (*pb.LimitBreakByMaterialResponse, error) {
 	log.Printf("[WeaponService] LimitBreakByMaterial: uuid=%s materials=%v", req.UserWeaponUuid, req.Materials)
 
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 	nowMillis := gametime.NowMillis()
 
-	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
 		weapon, ok := user.Weapons[req.UserWeaponUuid]
 		if !ok {
 			log.Printf("[WeaponService] LimitBreakByMaterial: weapon uuid=%s not found", req.UserWeaponUuid)
@@ -519,16 +572,25 @@ func (s *WeaponServiceServer) LimitBreakByMaterial(ctx context.Context, req *pb.
 		return nil, fmt.Errorf("weapon limit break by material: %w", err)
 	}
 
-	return &pb.LimitBreakByMaterialResponse{}, nil
+	diff := userdata.BuildDiffFromTables(userdata.ProjectTables(snapshot, limitBreakDiffTables))
+
+	return &pb.LimitBreakByMaterialResponse{DiffUserData: diff}, nil
 }
 
 func (s *WeaponServiceServer) LimitBreakByWeapon(ctx context.Context, req *pb.LimitBreakByWeaponRequest) (*pb.LimitBreakByWeaponResponse, error) {
 	log.Printf("[WeaponService] LimitBreakByWeapon: uuid=%s materialUuids=%v", req.UserWeaponUuid, req.MaterialUserWeaponUuids)
 
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 	nowMillis := gametime.NowMillis()
 
-	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+	oldUser, _ := s.users.LoadUser(userId)
+	tracker := userdata.NewDeleteTracker().
+		Track("IUserWeapon", oldUser, userdata.SortedWeaponRecords, []string{"userId", "userWeaponUuid"}).
+		Track("IUserWeaponSkill", oldUser, userdata.SortedWeaponSkillRecords, []string{"userId", "userWeaponUuid", "slotNumber"}).
+		Track("IUserWeaponAbility", oldUser, userdata.SortedWeaponAbilityRecords, []string{"userId", "userWeaponUuid", "slotNumber"}).
+		Track("IUserWeaponAwaken", oldUser, userdata.SortedWeaponAwakenRecords, []string{"userId", "userWeaponUuid"})
+
+	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
 		weapon, ok := user.Weapons[req.UserWeaponUuid]
 		if !ok {
 			log.Printf("[WeaponService] LimitBreakByWeapon: weapon uuid=%s not found", req.UserWeaponUuid)
@@ -596,16 +658,27 @@ func (s *WeaponServiceServer) LimitBreakByWeapon(ctx context.Context, req *pb.Li
 		return nil, fmt.Errorf("weapon limit break by weapon: %w", err)
 	}
 
-	return &pb.LimitBreakByWeaponResponse{}, nil
+	tables := userdata.ProjectTables(snapshot, limitBreakDiffTables)
+	diff := tracker.Apply(snapshot, tables)
+
+	return &pb.LimitBreakByWeaponResponse{DiffUserData: diff}, nil
 }
 
 func (s *WeaponServiceServer) EnhanceByWeapon(ctx context.Context, req *pb.EnhanceByWeaponRequest) (*pb.EnhanceByWeaponResponse, error) {
 	log.Printf("[WeaponService] EnhanceByWeapon: uuid=%s materialUuids=%v", req.UserWeaponUuid, req.MaterialUserWeaponUuids)
 
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 	nowMillis := gametime.NowMillis()
 
-	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+	oldUser, _ := s.users.LoadUser(userId)
+	tracker := userdata.NewDeleteTracker().
+		Track("IUserWeapon", oldUser, userdata.SortedWeaponRecords, []string{"userId", "userWeaponUuid"}).
+		Track("IUserWeaponSkill", oldUser, userdata.SortedWeaponSkillRecords, []string{"userId", "userWeaponUuid", "slotNumber"}).
+		Track("IUserWeaponAbility", oldUser, userdata.SortedWeaponAbilityRecords, []string{"userId", "userWeaponUuid", "slotNumber"}).
+		Track("IUserWeaponAwaken", oldUser, userdata.SortedWeaponAwakenRecords, []string{"userId", "userWeaponUuid"})
+
+	var changedStoryIds []int32
+	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
 		weapon, ok := user.Weapons[req.UserWeaponUuid]
 		if !ok {
 			log.Printf("[WeaponService] EnhanceByWeapon: weapon uuid=%s not found", req.UserWeaponUuid)
@@ -667,63 +740,77 @@ func (s *WeaponServiceServer) EnhanceByWeapon(ctx context.Context, req *pb.Enhan
 		user.Weapons[req.UserWeaponUuid] = weapon
 		log.Printf("[WeaponService] EnhanceByWeapon: weaponId=%d +%d exp -> total=%d level=%d", weapon.WeaponId, totalExp, weapon.Exp, weapon.Level)
 
-		s.checkWeaponStoryUnlocks(user, weapon.WeaponId, weapon.Level, nowMillis)
+		changedStoryIds = s.checkWeaponStoryUnlocks(user, weapon.WeaponId, weapon.Level, nowMillis)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("weapon enhance by weapon: %w", err)
 	}
 
+	tables := userdata.ProjectTables(snapshot, weaponDiffTables)
+	diff := tracker.Apply(snapshot, tables)
+	userdata.AddWeaponStoryDiff(diff, snapshot, changedStoryIds)
+
 	return &pb.EnhanceByWeaponResponse{
 		IsGreatSuccess:       false,
 		SurplusEnhanceWeapon: []string{},
+		DiffUserData:         diff,
 	}, nil
 }
 
-func (s *WeaponServiceServer) checkWeaponStoryUnlocks(user *store.UserState, weaponId, level int32, nowMillis int64) {
+func (s *WeaponServiceServer) checkWeaponStoryUnlocks(user *store.UserState, weaponId, level int32, nowMillis int64) []int32 {
 	wm, ok := s.catalog.Weapons[weaponId]
 	if !ok || wm.WeaponStoryReleaseConditionGroupId == 0 {
-		return
+		return nil
 	}
 	evoOrder, hasEvo := s.catalog.EvolutionOrder[weaponId]
 	conditions := s.catalog.ReleaseConditionsByGroupId[wm.WeaponStoryReleaseConditionGroupId]
 
+	changed := false
 	for _, cond := range conditions {
-		switch model.WeaponStoryReleaseConditionType(cond.WeaponStoryReleaseConditionType) {
+		granted := false
+		switch cond.WeaponStoryReleaseConditionType {
 		case model.WeaponStoryReleaseConditionTypeAcquisition:
-			store.GrantWeaponStoryUnlock(user, weaponId, cond.StoryIndex, nowMillis)
+			granted = store.GrantWeaponStoryUnlock(user, weaponId, cond.StoryIndex, nowMillis)
 		case model.WeaponStoryReleaseConditionTypeReachSpecifiedLevel:
 			if level >= cond.ConditionValue {
-				store.GrantWeaponStoryUnlock(user, weaponId, cond.StoryIndex, nowMillis)
+				granted = store.GrantWeaponStoryUnlock(user, weaponId, cond.StoryIndex, nowMillis)
 			}
 		case model.WeaponStoryReleaseConditionTypeReachInitialMaxLevel:
 			if maxFunc, ok := s.catalog.MaxLevelByEnhanceId[wm.WeaponSpecificEnhanceId]; ok {
 				if level >= maxFunc.Evaluate(0) {
-					store.GrantWeaponStoryUnlock(user, weaponId, cond.StoryIndex, nowMillis)
+					granted = store.GrantWeaponStoryUnlock(user, weaponId, cond.StoryIndex, nowMillis)
 				}
 			}
 		case model.WeaponStoryReleaseConditionTypeReachOnceEvolvedMaxLevel:
 			if hasEvo && evoOrder >= 1 {
 				if maxFunc, ok := s.catalog.MaxLevelByEnhanceId[wm.WeaponSpecificEnhanceId]; ok {
 					if level >= maxFunc.Evaluate(0) {
-						store.GrantWeaponStoryUnlock(user, weaponId, cond.StoryIndex, nowMillis)
+						granted = store.GrantWeaponStoryUnlock(user, weaponId, cond.StoryIndex, nowMillis)
 					}
 				}
 			}
 		case model.WeaponStoryReleaseConditionTypeReachSpecifiedEvolutionCount:
 			if hasEvo && evoOrder >= cond.ConditionValue {
-				store.GrantWeaponStoryUnlock(user, weaponId, cond.StoryIndex, nowMillis)
+				granted = store.GrantWeaponStoryUnlock(user, weaponId, cond.StoryIndex, nowMillis)
 			}
 		}
+		if granted {
+			changed = true
+		}
 	}
+	if changed {
+		return []int32{weaponId}
+	}
+	return nil
 }
 
 func (s *WeaponServiceServer) Awaken(ctx context.Context, req *pb.WeaponAwakenRequest) (*pb.WeaponAwakenResponse, error) {
 	log.Printf("[WeaponService] Awaken: uuid=%s", req.UserWeaponUuid)
 
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 	nowMillis := gametime.NowMillis()
 
-	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
 		weapon, ok := user.Weapons[req.UserWeaponUuid]
 		if !ok {
 			log.Printf("[WeaponService] Awaken: weapon uuid=%s not found", req.UserWeaponUuid)
@@ -770,5 +857,7 @@ func (s *WeaponServiceServer) Awaken(ctx context.Context, req *pb.WeaponAwakenRe
 		return nil, fmt.Errorf("weapon awaken: %w", err)
 	}
 
-	return &pb.WeaponAwakenResponse{}, nil
+	diff := userdata.BuildDiffFromTables(userdata.ProjectTables(snapshot, weaponAwakenDiffTables))
+
+	return &pb.WeaponAwakenResponse{DiffUserData: diff}, nil
 }

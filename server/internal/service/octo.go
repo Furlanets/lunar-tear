@@ -50,7 +50,6 @@ const resourcesURLOriginal = "https://resources.app.nierreincarnation.com"
 type OctoHTTPServer struct {
 	mux              *http.ServeMux
 	ResourcesBaseURL string // if non-empty and exactly 43 chars, list.bin is rewritten to use this base for asset URLs
-	BaseDir          string // root directory containing the assets/ tree; empty means current directory
 	revisions        *revisionTracker
 	resolver         *assetResolver
 }
@@ -125,13 +124,12 @@ func fileMD5Hex(path string, info os.FileInfo) (string, error) {
 	return sum, nil
 }
 
-func NewOctoHTTPServer(resourcesBaseURL, baseDir string) *OctoHTTPServer {
+func NewOctoHTTPServer(resourcesBaseURL string) *OctoHTTPServer {
 	s := &OctoHTTPServer{
 		mux:              http.NewServeMux(),
 		ResourcesBaseURL: resourcesBaseURL,
-		BaseDir:          baseDir,
 		revisions:        newRevisionTracker(),
-		resolver:         newAssetResolver(baseDir),
+		resolver:         newAssetResolver(),
 	}
 	s.resolver.Prewarm("0")
 	s.mux.HandleFunc("/", s.handleAll)
@@ -228,7 +226,7 @@ func (s *OctoHTTPServer) handleOctoV2(w http.ResponseWriter, r *http.Request, pa
 			requestedRevision := parts[len(parts)-1]
 			if requestedRevision != "" {
 				revision := "0"
-				filePath := filepath.Join(s.BaseDir, "assets", "revisions", "0", "list.bin")
+				filePath := "assets/revisions/0/list.bin"
 				if requestedRevision != revision {
 					log.Printf("[OctoV2] Resource list request revision=%s canonicalized to revision=%s", requestedRevision, revision)
 				}
@@ -268,7 +266,7 @@ func (s *OctoHTTPServer) serveOctoV1List(w http.ResponseWriter, r *http.Request,
 		requestedRevision = parts[len(parts)-1]
 	}
 	revision := "0"
-	filePath := filepath.Join(s.BaseDir, "assets", "revisions", "0", "list.bin")
+	filePath := "assets/revisions/0/list.bin"
 	if requestedRevision != revision {
 		log.Printf("[OctoV1] list request revision=%s canonicalized to revision=%s", requestedRevision, revision)
 	}
@@ -318,11 +316,11 @@ func (s *OctoHTTPServer) serveUnsoAsset(w http.ResponseWriter, r *http.Request, 
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	revDir := filepath.Join(s.BaseDir, "assets", "revisions")
+	baseDir := filepath.Join("assets", "revisions")
 	var triedPaths []string
 	var md5Mismatches []string
 	for _, candidate := range resolution.Candidates {
-		rel, err := filepath.Rel(revDir, candidate.Path)
+		rel, err := filepath.Rel(baseDir, candidate.Path)
 		if err != nil || strings.Contains(rel, "..") || filepath.IsAbs(rel) {
 			continue
 		}
@@ -411,9 +409,9 @@ func (s *OctoHTTPServer) serveDatabaseBinE(w http.ResponseWriter, r *http.Reques
 			break
 		}
 	}
-	filePath := filepath.Join(s.BaseDir, "assets", "release", "database.bin.e")
+	filePath := "assets/release/database.bin.e"
 	if version != "" {
-		vPath := filepath.Join(s.BaseDir, "assets", "release", version+".bin.e")
+		vPath := "assets/release/" + version + ".bin.e"
 		if _, err := os.Stat(vPath); err == nil {
 			filePath = vPath
 		}

@@ -8,6 +8,7 @@ import (
 	pb "lunar-tear/server/gen/proto"
 	"lunar-tear/server/internal/masterdata"
 	"lunar-tear/server/internal/store"
+	"lunar-tear/server/internal/userdata"
 )
 
 type ConsumableItemServiceServer struct {
@@ -25,9 +26,13 @@ func NewConsumableItemServiceServer(users store.UserRepository, sessions store.S
 func (s *ConsumableItemServiceServer) Sell(ctx context.Context, req *pb.ConsumableItemSellRequest) (*pb.ConsumableItemSellResponse, error) {
 	log.Printf("[ConsumableItemService] Sell: %d item(s)", len(req.ConsumableItemPossession))
 
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 
-	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+	oldUser, _ := s.users.LoadUser(userId)
+	tracker := userdata.NewDeleteTracker().
+		Track("IUserConsumableItem", oldUser, userdata.SortedConsumableItemRecords, []string{"userId", "consumableItemId"})
+
+	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
 		totalGold := int32(0)
 		for _, item := range req.ConsumableItemPossession {
 			row, ok := s.catalog.All[item.ConsumableItemId]
@@ -61,5 +66,10 @@ func (s *ConsumableItemServiceServer) Sell(ctx context.Context, req *pb.Consumab
 		return nil, fmt.Errorf("consumable item sell: %w", err)
 	}
 
-	return &pb.ConsumableItemSellResponse{}, nil
+	tables := userdata.ProjectTables(snapshot, []string{"IUserConsumableItem"})
+	diff := tracker.Apply(snapshot, tables)
+
+	return &pb.ConsumableItemSellResponse{
+		DiffUserData: diff,
+	}, nil
 }
