@@ -1,24 +1,20 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"log"
 	"net"
+	"strconv"
 
 	pb "lunar-tear/server/gen/proto"
 	"lunar-tear/server/internal/gacha"
-	"lunar-tear/server/internal/gametime"
+	"lunar-tear/server/internal/interceptor"
 	"lunar-tear/server/internal/masterdata"
 	"lunar-tear/server/internal/questflow"
 	"lunar-tear/server/internal/service"
-	"lunar-tear/server/internal/store/memory"
+	"lunar-tear/server/internal/store"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/reflection"
-	"google.golang.org/grpc/status"
 )
 
 type loggingListener struct {
@@ -36,11 +32,17 @@ func (l loggingListener) Accept() (net.Conn, error) {
 }
 
 func startGRPC(
-	host string,
+	listenAddr string,
+	publicAddr string,
 	octoURL string,
-	userStore *memory.MemoryStore,
+	authURL string,
+	userStore interface {
+		store.UserRepository
+		store.SessionRepository
+	},
 	questEngine *questflow.QuestHandler,
 	gachaHandler *gacha.GachaHandler,
+	gachaEntries []store.GachaCatalogEntry,
 	cageOrnamentCatalog *masterdata.CageOrnamentCatalog,
 	loginBonusCatalog *masterdata.LoginBonusCatalog,
 	characterViewerCatalog *masterdata.CharacterViewerCatalog,
@@ -59,24 +61,27 @@ func startGRPC(
 	gameConfig *masterdata.GameConfig,
 	sideStoryCatalog *masterdata.SideStoryCatalog,
 	bigHuntCatalog *masterdata.BigHuntCatalog,
-) {
-	lis, err := net.Listen("tcp", ":443")
+) *grpc.Server {
+	lis, err := net.Listen("tcp", listenAddr)
 	if err != nil {
-		log.Fatalf("failed to listen on :443: %v", err)
+		log.Fatalf("failed to listen on %s: %v", listenAddr, err)
 	}
 	lis = loggingListener{Listener: lis}
 
+	diffInterceptor := interceptor.NewDiffInterceptor(userStore, userStore)
 	grpcServer := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(loggingInterceptor, timeSyncInterceptor),
-		grpc.UnknownServiceHandler(loggingUnknownService),
+		grpc.ChainUnaryInterceptor(interceptor.Platform, interceptor.Logging, diffInterceptor, interceptor.TimeSync),
+		grpc.UnknownServiceHandler(interceptor.UnknownService),
 	)
 
 	registerServices(grpcServer,
-		host,
+		publicAddr,
 		octoURL,
+		authURL,
 		userStore,
 		questEngine,
 		gachaHandler,
+		gachaEntries,
 		cageOrnamentCatalog,
 		loginBonusCatalog,
 		characterViewerCatalog,
@@ -99,21 +104,29 @@ func startGRPC(
 
 	reflection.Register(grpcServer)
 
-	log.Printf("gRPC server listening on :443")
-	log.Printf("client host address: %s:443", host)
+	log.Printf("gRPC server listening on %s", lis.Addr())
+	log.Printf("public address: %s", publicAddr)
 
-	if err := grpcServer.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
-	}
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Printf("gRPC server stopped: %v", err)
+		}
+	}()
+	return grpcServer
 }
 
 func registerServices(
 	srv *grpc.Server,
-	host string,
+	publicAddr string,
 	octoURL string,
-	userStore *memory.MemoryStore,
+	authURL string,
+	userStore interface {
+		store.UserRepository
+		store.SessionRepository
+	},
 	questEngine *questflow.QuestHandler,
 	gachaHandler *gacha.GachaHandler,
+	gachaEntries []store.GachaCatalogEntry,
 	cageOrnamentCatalog *masterdata.CageOrnamentCatalog,
 	loginBonusCatalog *masterdata.LoginBonusCatalog,
 	characterViewerCatalog *masterdata.CharacterViewerCatalog,
@@ -133,13 +146,16 @@ func registerServices(
 	sideStoryCatalog *masterdata.SideStoryCatalog,
 	bigHuntCatalog *masterdata.BigHuntCatalog,
 ) {
-	pb.RegisterBannerServiceServer(srv, service.NewBannerServiceServer(userStore))
-	pb.RegisterUserServiceServer(srv, service.NewUserServiceServer(userStore, userStore))
+	pubHost, pubPortStr, _ := net.SplitHostPort(publicAddr)
+	pubPort, _ := strconv.Atoi(pubPortStr)
+
+	pb.RegisterBannerServiceServer(srv, service.NewBannerServiceServer(gachaEntries))
+	pb.RegisterUserServiceServer(srv, service.NewUserServiceServer(userStore, userStore, authURL))
 	pb.RegisterBattleServiceServer(srv, service.NewBattleServiceServer(userStore, userStore))
-	pb.RegisterConfigServiceServer(srv, service.NewConfigServiceServer(host, int32(443), octoURL))
+	pb.RegisterConfigServiceServer(srv, service.NewConfigServiceServer(pubHost, int32(pubPort), octoURL))
 	pb.RegisterDataServiceServer(srv, service.NewDataServiceServer(userStore, userStore))
 	pb.RegisterTutorialServiceServer(srv, service.NewTutorialServiceServer(userStore, userStore, questEngine))
-	pb.RegisterGachaServiceServer(srv, service.NewGachaServiceServer(userStore, userStore, userStore, gachaHandler))
+	pb.RegisterGachaServiceServer(srv, service.NewGachaServiceServer(userStore, userStore, gachaEntries, gachaHandler))
 	pb.RegisterGiftServiceServer(srv, service.NewGiftServiceServer(userStore, userStore))
 	pb.RegisterGamePlayServiceServer(srv, service.NewGameplayServiceServer())
 	pb.RegisterGimmickServiceServer(srv, service.NewGimmickServiceServer(userStore, userStore, gimmickCatalog))
@@ -170,40 +186,4 @@ func registerServices(
 	pb.RegisterSideStoryQuestServiceServer(srv, service.NewSideStoryQuestServiceServer(userStore, userStore, sideStoryCatalog))
 	pb.RegisterBigHuntServiceServer(srv, service.NewBigHuntServiceServer(userStore, userStore, bigHuntCatalog, questEngine))
 	pb.RegisterRewardServiceServer(srv, service.NewRewardServiceServer(userStore, userStore, bigHuntCatalog, questEngine.Granter))
-}
-
-func loggingInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-	log.Printf(">>> %s", info.FullMethod)
-	resp, err := handler(ctx, req)
-	if err != nil {
-		log.Printf("<<< %s ERROR: %v", info.FullMethod, err)
-	} else {
-		log.Printf("<<< %s OK", info.FullMethod)
-	}
-	return resp, err
-}
-
-func timeSyncInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-	resp, err := handler(ctx, req)
-	switch info.FullMethod {
-	case "/apb.api.user.UserService/Auth",
-		"/apb.api.user.UserService/RegisterUser",
-		"/apb.api.user.UserService/TransferUser":
-	default:
-		grpc.SetTrailer(ctx, metadata.Pairs(
-			"x-apb-response-datetime", fmt.Sprintf("%d", gametime.NowMillis()),
-		))
-	}
-	return resp, err
-}
-
-func loggingUnknownService(_ any, stream grpc.ServerStream) error {
-	fullMethod, ok := grpc.MethodFromServerStream(stream)
-	if !ok {
-		fullMethod = "<unknown>"
-	}
-	log.Printf(">>> %s", fullMethod)
-	err := status.Errorf(codes.Unimplemented, "unknown service or method %s", fullMethod)
-	log.Printf("<<< %s ERROR: %v", fullMethod, err)
-	return err
 }

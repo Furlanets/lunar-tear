@@ -1,51 +1,48 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
 	"os"
-	"strconv"
-	"strings"
+	"os/signal"
+	"syscall"
 
+	"lunar-tear/server/internal/database"
 	"lunar-tear/server/internal/gacha"
 	"lunar-tear/server/internal/gametime"
 	"lunar-tear/server/internal/masterdata"
+	"lunar-tear/server/internal/masterdata/memorydb"
 	"lunar-tear/server/internal/questflow"
-	"lunar-tear/server/internal/store/memory"
+	"lunar-tear/server/internal/store/sqlite"
 )
 
 func main() {
-	httpPort := flag.Int("http-port", 8080, "HTTP server port (Octo API)")
-	host := flag.String("host", "127.0.0.1", "hostname the client will connect to")
-	scene := flag.Int("scene", 0, "Bootstrap to scene N (0 = fresh start)")
-	latestScene := flag.Bool("latest-scene", false, "Bootstrap from the most recently saved snapshot (overrides -scene)")
-	starterItems := flag.Bool("starter-items", false, "Grant starter items to new users")
+	listen := flag.String("listen", "0.0.0.0:443", "gRPC listen address (host:port)")
+	publicAddr := flag.String("public-addr", "127.0.0.1:443", "externally-reachable host:port advertised to clients")
+	dbPath := flag.String("db", "db/game.db", "SQLite database path")
+	octoURL := flag.String("octo-url", "", "Octo CDN base URL the client will use for assets (e.g. http://10.0.2.2:8080)")
+	authURL := flag.String("auth-url", "", "Auth server base URL for Facebook token validation (e.g. http://localhost:3000)")
 	flag.Parse()
 
-	octoURL := "http://" + *host + ":" + strconv.Itoa(*httpPort)
-	prefix := octoURL + "/"
-	padLen := 43 - len(prefix)
-	resourcesBaseURL := ""
-	if padLen < 1 {
-		log.Printf("[config] host:port too long for 43-char resource URL; list.bin will be served unchanged")
-	} else {
-		resourcesBaseURL = prefix + strings.Repeat("r", padLen)
+	if *octoURL == "" {
+		log.Fatalf("--octo-url is required (e.g. http://10.0.2.2:8080)")
 	}
 
-	go startHTTP(*httpPort, resourcesBaseURL)
+	if err := memorydb.Init("assets/release/20240404193219.bin.e"); err != nil {
+		log.Fatalf("load master data: %v", err)
+	}
+	log.Printf("master data loaded (%d tables)", memorydb.TableCount())
 
-	snapshotDir := "snapshots"
-	if err := os.MkdirAll(snapshotDir, 0755); err != nil {
-		log.Fatalf("create snapshot dir: %v", err)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	db, err := database.Open(*dbPath)
+	if err != nil {
+		log.Fatalf("open database: %v", err)
 	}
-	if *latestScene {
-		if id, ok := memory.LatestSnapshotSceneId(snapshotDir); ok {
-			*scene = int(id)
-			log.Printf("[latest-scene] auto-selected most recent snapshot: scene=%d", id)
-		} else {
-			log.Printf("[latest-scene] no snapshots found in %q; starting fresh", snapshotDir)
-		}
-	}
+	defer db.Close()
+	log.Printf("database opened: %s", *dbPath)
 
 	gameConfig, err := masterdata.LoadGameConfig()
 	if err != nil {
@@ -65,14 +62,7 @@ func main() {
 		log.Fatalf("load quest catalog: %v", err)
 	}
 	questHandler := questflow.NewQuestHandler(questCatalog, gameConfig)
-	userStore := memory.New(gametime.Now,
-		memory.WithSnapshotDir(snapshotDir),
-		memory.WithSceneId(int32(*scene)),
-		memory.WithStarterItems(*starterItems),
-	)
-	if *scene != 0 {
-		log.Printf("bootstrap scene: %d (from snapshot)", *scene)
-	}
+	userStore := sqlite.New(db, gametime.Now)
 
 	gachaEntries, medalInfo, err := masterdata.LoadGachaCatalog()
 	if err != nil {
@@ -99,7 +89,6 @@ func main() {
 	gachaPool.BuildFeaturedMapping(gachaEntries)
 	gachaPool.BuildBannerPools(gachaEntries)
 	masterdata.EnrichCatalogPromotions(gachaEntries, gachaPool)
-	userStore.ReplaceCatalog(gachaEntries)
 
 	dupExchange, err := masterdata.LoadDupExchange()
 	if err != nil {
@@ -179,12 +168,15 @@ func main() {
 	sideStoryCatalog := masterdata.LoadSideStoryCatalog()
 	bigHuntCatalog := masterdata.LoadBigHuntCatalog()
 
-	startGRPC(
-		*host,
-		octoURL,
+	grpcServer := startGRPC(
+		*listen,
+		*publicAddr,
+		*octoURL,
+		*authURL,
 		userStore,
 		questHandler,
 		gachaHandler,
+		gachaEntries,
 		cageOrnamentCatalog,
 		loginBonusCatalog,
 		characterViewerCatalog,
@@ -204,4 +196,12 @@ func main() {
 		sideStoryCatalog,
 		bigHuntCatalog,
 	)
+
+	<-ctx.Done()
+	log.Println("shutting down...")
+
+	grpcServer.GracefulStop()
+	database.Checkpoint(db)
+
+	log.Println("shutdown complete")
 }

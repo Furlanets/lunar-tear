@@ -99,6 +99,8 @@ func FullClientTableMap(user store.UserState) map[string]string {
 		"IUserBigHuntScheduleMaxScore":            projectTable("IUserBigHuntScheduleMaxScore", user),
 		"IUserBigHuntWeeklyMaxScore":              projectTable("IUserBigHuntWeeklyMaxScore", user),
 		"IUserBigHuntWeeklyStatus":                projectTable("IUserBigHuntWeeklyStatus", user),
+		"IUserFacebook":                           projectTable("IUserFacebook", user),
+		"IUserApple":                              projectTable("IUserApple", user),
 	}
 }
 
@@ -136,6 +138,14 @@ func SelectTables(all map[string]string, requested []string) map[string]string {
 		selected[table] = "[]"
 	}
 	return selected
+}
+
+func ProjectTables(user store.UserState, requested []string) map[string]string {
+	result := make(map[string]string, len(requested))
+	for _, table := range requested {
+		result[table] = projectTable(table, user)
+	}
+	return result
 }
 
 func BuildDiffFromTables(tables map[string]string) map[string]*pb.DiffData {

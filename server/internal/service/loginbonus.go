@@ -2,15 +2,15 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"time"
+
+	"github.com/google/uuid"
 
 	pb "lunar-tear/server/gen/proto"
 	"lunar-tear/server/internal/gametime"
 	"lunar-tear/server/internal/masterdata"
 	"lunar-tear/server/internal/store"
-	"lunar-tear/server/internal/userdata"
 
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
@@ -28,9 +28,9 @@ func NewLoginBonusServiceServer(users store.UserRepository, sessions store.Sessi
 
 func (s *LoginBonusServiceServer) ReceiveStamp(ctx context.Context, req *emptypb.Empty) (*pb.ReceiveStampResponse, error) {
 	log.Printf("[LoginBonusService] ReceiveStamp")
-	userId := currentUserId(ctx, s.users, s.sessions)
+	userId := CurrentUserId(ctx, s.users, s.sessions)
 
-	user, _ := s.users.UpdateUser(userId, func(user *store.UserState) {
+	s.users.UpdateUser(userId, func(user *store.UserState) {
 		now := gametime.NowMillis()
 		nextStamp := user.LoginBonus.CurrentStampNumber + 1
 
@@ -55,7 +55,7 @@ func (s *LoginBonusServiceServer) ReceiveStamp(ctx context.Context, req *emptypb
 				GrantDatetime:  now,
 			},
 			ExpirationDatetime: now + int64(30*24*time.Hour/time.Millisecond),
-			UserGiftUuid:       fmt.Sprintf("login-bonus-%d-%d", userId, nextStamp),
+			UserGiftUuid:       uuid.New().String(),
 		})
 		user.Notifications.GiftNotReceiveCount = int32(len(user.Gifts.NotReceived))
 		user.LoginBonus.CurrentStampNumber = nextStamp
@@ -63,10 +63,5 @@ func (s *LoginBonusServiceServer) ReceiveStamp(ctx context.Context, req *emptypb
 		user.LoginBonus.LatestVersion = now
 	})
 
-	diff := userdata.BuildDiffFromTables(userdata.SelectTables(
-		userdata.FullClientTableMap(user),
-		[]string{"IUserLoginBonus"},
-	))
-	setCommonResponseTrailers(ctx, diff, false)
-	return &pb.ReceiveStampResponse{DiffUserData: diff}, nil
+	return &pb.ReceiveStampResponse{}, nil
 }

@@ -7,11 +7,6 @@ import (
 	"lunar-tear/server/internal/utils"
 )
 
-type configRow struct {
-	ConfigKey string `json:"ConfigKey"`
-	Value     string `json:"Value"`
-}
-
 type GameConfig struct {
 	ConsumableItemIdForGold               int32
 	ConsumableItemIdForMedal              int32
@@ -35,10 +30,13 @@ type GameConfig struct {
 	QuestSkipMaxCountAtOnce   int32
 
 	WeaponLimitBreakAvailableCount int32
+
+	CostumeLotteryEffectUnlockSlotConsumeGold int32
+	CostumeLotteryEffectDrawSlotConsumeGold   int32
 }
 
 func LoadGameConfig() (*GameConfig, error) {
-	rows, err := utils.ReadJSON[configRow]("EntityMConfigTable.json")
+	rows, err := utils.ReadTable[EntityMConfig]("m_config")
 	if err != nil {
 		return nil, fmt.Errorf("load config table: %w", err)
 	}
@@ -72,6 +70,9 @@ func LoadGameConfig() (*GameConfig, error) {
 	cfg.QuestSkipMaxCountAtOnce = parseInt32(kv, "QUEST_SKIP_MAX_COUNT_AT_ONCE")
 
 	cfg.WeaponLimitBreakAvailableCount = parseInt32(kv, "WEAPON_LIMIT_BREAK_AVAILABLE_COUNT")
+
+	cfg.CostumeLotteryEffectUnlockSlotConsumeGold = parseInt32(kv, "COSTUME_LOTTERY_EFFECT_UNLOCK_SLOT_CONSUME_GOLD")
+	cfg.CostumeLotteryEffectDrawSlotConsumeGold = parseInt32(kv, "COSTUME_LOTTERY_EFFECT_DRAW_SLOT_CONSUME_GOLD")
 
 	return cfg, nil
 }

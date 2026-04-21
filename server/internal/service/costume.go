@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math/rand"
+
+	"github.com/google/uuid"
 
 	pb "lunar-tear/server/gen/proto"
 	"lunar-tear/server/internal/gametime"
@@ -11,14 +14,7 @@ import (
 	"lunar-tear/server/internal/masterdata"
 	"lunar-tear/server/internal/model"
 	"lunar-tear/server/internal/store"
-	"lunar-tear/server/internal/userdata"
 )
-
-var costumeDiffTables = []string{
-	"IUserCostume",
-	"IUserMaterial",
-	"IUserConsumableItem",
-}
 
 type CostumeServiceServer struct {
 	pb.UnimplementedCostumeServiceServer
@@ -35,10 +31,10 @@ func NewCostumeServiceServer(users store.UserRepository, sessions store.SessionR
 func (s *CostumeServiceServer) Enhance(ctx context.Context, req *pb.EnhanceRequest) (*pb.EnhanceResponse, error) {
 	log.Printf("[CostumeService] Enhance: uuid=%s materials=%v", req.UserCostumeUuid, req.Materials)
 
-	userId := currentUserId(ctx, s.users, s.sessions)
+	userId := CurrentUserId(ctx, s.users, s.sessions)
 	nowMillis := gametime.NowMillis()
 
-	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
 		costume, ok := user.Costumes[req.UserCostumeUuid]
 		if !ok {
 			log.Printf("[CostumeService] Enhance: costume uuid=%s not found", req.UserCostumeUuid)
@@ -95,31 +91,19 @@ func (s *CostumeServiceServer) Enhance(ctx context.Context, req *pb.EnhanceReque
 		return nil, fmt.Errorf("costume enhance: %w", err)
 	}
 
-	tables := userdata.FullClientTableMap(snapshot)
-	diff := userdata.BuildDiffFromTables(userdata.SelectTables(tables, costumeDiffTables))
-
 	return &pb.EnhanceResponse{
 		IsGreatSuccess:         false,
 		SurplusEnhanceMaterial: map[int32]int32{},
-		DiffUserData:           diff,
 	}, nil
-}
-
-var awakenDiffTables = []string{
-	"IUserCostume",
-	"IUserMaterial",
-	"IUserConsumableItem",
-	"IUserCostumeAwakenStatusUp",
-	"IUserThought",
 }
 
 func (s *CostumeServiceServer) Awaken(ctx context.Context, req *pb.AwakenRequest) (*pb.AwakenResponse, error) {
 	log.Printf("[CostumeService] Awaken: uuid=%s materials=%v", req.UserCostumeUuid, req.Materials)
 
-	userId := currentUserId(ctx, s.users, s.sessions)
+	userId := CurrentUserId(ctx, s.users, s.sessions)
 	nowMillis := gametime.NowMillis()
 
-	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
 		costume, ok := user.Costumes[req.UserCostumeUuid]
 		if !ok {
 			log.Printf("[CostumeService] Awaken: costume uuid=%s not found", req.UserCostumeUuid)
@@ -177,12 +161,7 @@ func (s *CostumeServiceServer) Awaken(ctx context.Context, req *pb.AwakenRequest
 		return nil, fmt.Errorf("costume awaken: %w", err)
 	}
 
-	tables := userdata.FullClientTableMap(snapshot)
-	diff := userdata.BuildDiffFromTables(userdata.SelectTables(tables, awakenDiffTables))
-
-	return &pb.AwakenResponse{
-		DiffUserData: diff,
-	}, nil
+	return &pb.AwakenResponse{}, nil
 }
 
 func (s *CostumeServiceServer) applyAwakenStatusUp(user *store.UserState, costumeUuid string, statusUpGroupId int32, nowMillis int64) {
@@ -229,10 +208,12 @@ func (s *CostumeServiceServer) applyAwakenItemAcquire(user *store.UserState, ite
 		return
 	}
 
-	key := fmt.Sprintf("awaken-thought-%d", acq.PossessionId)
-	if _, exists := user.Thoughts[key]; exists {
-		return
+	for _, t := range user.Thoughts {
+		if t.ThoughtId == acq.PossessionId {
+			return
+		}
 	}
+	key := uuid.New().String()
 	user.Thoughts[key] = store.ThoughtState{
 		UserThoughtUuid:     key,
 		ThoughtId:           acq.PossessionId,
@@ -242,19 +223,13 @@ func (s *CostumeServiceServer) applyAwakenItemAcquire(user *store.UserState, ite
 	log.Printf("[CostumeService] Awaken: granted thought id=%d", acq.PossessionId)
 }
 
-var activeSkillDiffTables = []string{
-	"IUserCostumeActiveSkill",
-	"IUserMaterial",
-	"IUserConsumableItem",
-}
-
 func (s *CostumeServiceServer) EnhanceActiveSkill(ctx context.Context, req *pb.EnhanceActiveSkillRequest) (*pb.EnhanceActiveSkillResponse, error) {
 	log.Printf("[CostumeService] EnhanceActiveSkill: uuid=%s addLevel=%d", req.UserCostumeUuid, req.AddLevelCount)
 
-	userId := currentUserId(ctx, s.users, s.sessions)
+	userId := CurrentUserId(ctx, s.users, s.sessions)
 	nowMillis := gametime.NowMillis()
 
-	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
 		costume, ok := user.Costumes[req.UserCostumeUuid]
 		if !ok {
 			log.Printf("[CostumeService] EnhanceActiveSkill: costume uuid=%s not found", req.UserCostumeUuid)
@@ -329,21 +304,16 @@ func (s *CostumeServiceServer) EnhanceActiveSkill(ctx context.Context, req *pb.E
 		return nil, fmt.Errorf("costume enhance active skill: %w", err)
 	}
 
-	tables := userdata.FullClientTableMap(snapshot)
-	diff := userdata.BuildDiffFromTables(userdata.SelectTables(tables, activeSkillDiffTables))
-
-	return &pb.EnhanceActiveSkillResponse{
-		DiffUserData: diff,
-	}, nil
+	return &pb.EnhanceActiveSkillResponse{}, nil
 }
 
 func (s *CostumeServiceServer) LimitBreak(ctx context.Context, req *pb.LimitBreakRequest) (*pb.LimitBreakResponse, error) {
 	log.Printf("[CostumeService] LimitBreak: uuid=%s materials=%v", req.UserCostumeUuid, req.Materials)
 
-	userId := currentUserId(ctx, s.users, s.sessions)
+	userId := CurrentUserId(ctx, s.users, s.sessions)
 	nowMillis := gametime.NowMillis()
 
-	snapshot, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
 		costume, ok := user.Costumes[req.UserCostumeUuid]
 		if !ok {
 			log.Printf("[CostumeService] LimitBreak: costume uuid=%s not found", req.UserCostumeUuid)
@@ -387,10 +357,180 @@ func (s *CostumeServiceServer) LimitBreak(ctx context.Context, req *pb.LimitBrea
 		return nil, fmt.Errorf("costume limit break: %w", err)
 	}
 
-	tables := userdata.FullClientTableMap(snapshot)
-	diff := userdata.BuildDiffFromTables(userdata.SelectTables(tables, costumeDiffTables))
+	return &pb.LimitBreakResponse{}, nil
+}
 
-	return &pb.LimitBreakResponse{
-		DiffUserData: diff,
-	}, nil
+func (s *CostumeServiceServer) UnlockLotteryEffectSlot(ctx context.Context, req *pb.UnlockLotteryEffectSlotRequest) (*pb.UnlockLotteryEffectSlotResponse, error) {
+	log.Printf("[CostumeService] UnlockLotteryEffectSlot: uuid=%s slot=%d", req.UserCostumeUuid, req.SlotNumber)
+
+	userId := CurrentUserId(ctx, s.users, s.sessions)
+	nowMillis := gametime.NowMillis()
+
+	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+		costume, ok := user.Costumes[req.UserCostumeUuid]
+		if !ok {
+			log.Printf("[CostumeService] UnlockLotteryEffectSlot: costume uuid=%s not found", req.UserCostumeUuid)
+			return
+		}
+
+		effectRow, ok := s.catalog.LotteryEffects[[2]int32{costume.CostumeId, req.SlotNumber}]
+		if !ok {
+			log.Printf("[CostumeService] UnlockLotteryEffectSlot: no lottery effect for costumeId=%d slot=%d", costume.CostumeId, req.SlotNumber)
+			return
+		}
+
+		user.ConsumableItems[s.config.ConsumableItemIdForGold] -= s.config.CostumeLotteryEffectUnlockSlotConsumeGold
+
+		mats := s.catalog.LotteryEffectMats[effectRow.CostumeLotteryEffectUnlockMaterialGroupId]
+		for _, mat := range mats {
+			cur := user.Materials[mat.MaterialId]
+			cost := mat.Count
+			if cur < cost {
+				log.Printf("[CostumeService] UnlockLotteryEffectSlot: insufficient material id=%d have=%d need=%d", mat.MaterialId, cur, cost)
+				cost = cur
+			}
+			user.Materials[mat.MaterialId] = cur - cost
+		}
+
+		key := store.CostumeLotteryEffectKey{
+			UserCostumeUuid: req.UserCostumeUuid,
+			SlotNumber:      req.SlotNumber,
+		}
+		user.CostumeLotteryEffects[key] = store.CostumeLotteryEffectState{
+			UserCostumeUuid: req.UserCostumeUuid,
+			SlotNumber:      req.SlotNumber,
+			OddsNumber:      0,
+			LatestVersion:   nowMillis,
+		}
+
+		costume.CostumeLotteryEffectUnlockedSlotCount++
+		costume.LatestVersion = nowMillis
+		user.Costumes[req.UserCostumeUuid] = costume
+		log.Printf("[CostumeService] UnlockLotteryEffectSlot: costumeId=%d slot=%d unlocked slotCount=%d", costume.CostumeId, req.SlotNumber, costume.CostumeLotteryEffectUnlockedSlotCount)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("costume unlock lottery effect slot: %w", err)
+	}
+
+	return &pb.UnlockLotteryEffectSlotResponse{}, nil
+}
+
+func (s *CostumeServiceServer) DrawLotteryEffect(ctx context.Context, req *pb.DrawLotteryEffectRequest) (*pb.DrawLotteryEffectResponse, error) {
+	log.Printf("[CostumeService] DrawLotteryEffect: uuid=%s slot=%d", req.UserCostumeUuid, req.SlotNumber)
+
+	userId := CurrentUserId(ctx, s.users, s.sessions)
+	nowMillis := gametime.NowMillis()
+
+	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+		costume, ok := user.Costumes[req.UserCostumeUuid]
+		if !ok {
+			log.Printf("[CostumeService] DrawLotteryEffect: costume uuid=%s not found", req.UserCostumeUuid)
+			return
+		}
+
+		effectRow, ok := s.catalog.LotteryEffects[[2]int32{costume.CostumeId, req.SlotNumber}]
+		if !ok {
+			log.Printf("[CostumeService] DrawLotteryEffect: no lottery effect for costumeId=%d slot=%d", costume.CostumeId, req.SlotNumber)
+			return
+		}
+
+		oddsPool := s.catalog.LotteryEffectOdds[effectRow.CostumeLotteryEffectOddsGroupId]
+		if len(oddsPool) == 0 {
+			log.Printf("[CostumeService] DrawLotteryEffect: empty odds pool for groupId=%d", effectRow.CostumeLotteryEffectOddsGroupId)
+			return
+		}
+
+		user.ConsumableItems[s.config.ConsumableItemIdForGold] -= s.config.CostumeLotteryEffectDrawSlotConsumeGold
+
+		mats := s.catalog.LotteryEffectMats[effectRow.CostumeLotteryEffectDrawMaterialGroupId]
+		for _, mat := range mats {
+			cur := user.Materials[mat.MaterialId]
+			cost := mat.Count
+			if cur < cost {
+				log.Printf("[CostumeService] DrawLotteryEffect: insufficient material id=%d have=%d need=%d", mat.MaterialId, cur, cost)
+				cost = cur
+			}
+			user.Materials[mat.MaterialId] = cur - cost
+		}
+
+		totalWeight := int32(0)
+		for _, row := range oddsPool {
+			totalWeight += row.Weight
+		}
+		roll := rand.Int31n(totalWeight)
+		var picked masterdata.EntityMCostumeLotteryEffectOddsGroup
+		for _, row := range oddsPool {
+			roll -= row.Weight
+			if roll < 0 {
+				picked = row
+				break
+			}
+		}
+
+		key := store.CostumeLotteryEffectKey{
+			UserCostumeUuid: req.UserCostumeUuid,
+			SlotNumber:      req.SlotNumber,
+		}
+		existing := user.CostumeLotteryEffects[key]
+		if existing.OddsNumber == 0 {
+			existing.UserCostumeUuid = req.UserCostumeUuid
+			existing.SlotNumber = req.SlotNumber
+			existing.OddsNumber = picked.OddsNumber
+			existing.LatestVersion = nowMillis
+			user.CostumeLotteryEffects[key] = existing
+		} else {
+			user.CostumeLotteryEffectPending[req.UserCostumeUuid] = store.CostumeLotteryEffectPendingState{
+				UserCostumeUuid: req.UserCostumeUuid,
+				SlotNumber:      req.SlotNumber,
+				OddsNumber:      picked.OddsNumber,
+				LatestVersion:   nowMillis,
+			}
+		}
+
+		log.Printf("[CostumeService] DrawLotteryEffect: costumeId=%d slot=%d drew oddsNumber=%d type=%d targetId=%d firstDraw=%v",
+			costume.CostumeId, req.SlotNumber, picked.OddsNumber, picked.CostumeLotteryEffectType, picked.CostumeLotteryEffectTargetId, existing.OddsNumber == 0)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("costume draw lottery effect: %w", err)
+	}
+
+	return &pb.DrawLotteryEffectResponse{}, nil
+}
+
+func (s *CostumeServiceServer) ConfirmLotteryEffect(ctx context.Context, req *pb.ConfirmLotteryEffectRequest) (*pb.ConfirmLotteryEffectResponse, error) {
+	log.Printf("[CostumeService] ConfirmLotteryEffect: uuid=%s accept=%v", req.UserCostumeUuid, req.IsAccept)
+
+	userId := CurrentUserId(ctx, s.users, s.sessions)
+	nowMillis := gametime.NowMillis()
+
+	_, err := s.users.UpdateUser(userId, func(user *store.UserState) {
+		pending, ok := user.CostumeLotteryEffectPending[req.UserCostumeUuid]
+		if !ok {
+			log.Printf("[CostumeService] ConfirmLotteryEffect: no pending for uuid=%s", req.UserCostumeUuid)
+			return
+		}
+
+		if req.IsAccept {
+			key := store.CostumeLotteryEffectKey{
+				UserCostumeUuid: pending.UserCostumeUuid,
+				SlotNumber:      pending.SlotNumber,
+			}
+			effect := user.CostumeLotteryEffects[key]
+			effect.UserCostumeUuid = pending.UserCostumeUuid
+			effect.SlotNumber = pending.SlotNumber
+			effect.OddsNumber = pending.OddsNumber
+			effect.LatestVersion = nowMillis
+			user.CostumeLotteryEffects[key] = effect
+			log.Printf("[CostumeService] ConfirmLotteryEffect: accepted oddsNumber=%d for slot=%d", pending.OddsNumber, pending.SlotNumber)
+		} else {
+			log.Printf("[CostumeService] ConfirmLotteryEffect: rejected oddsNumber=%d for slot=%d", pending.OddsNumber, pending.SlotNumber)
+		}
+
+		delete(user.CostumeLotteryEffectPending, req.UserCostumeUuid)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("costume confirm lottery effect: %w", err)
+	}
+
+	return &pb.ConfirmLotteryEffectResponse{}, nil
 }
