@@ -39,6 +39,8 @@ func (f NumericalFunc) Evaluate(value int32) int32 {
 			p[1]*value*value/1000 +
 			p[2]*value/1000 +
 			p[3]
+	case model.NumericalFunctionTypePartsMainOption:
+		return p[0]*value/1000 + p[1]
 	default:
 		return 0
 	}

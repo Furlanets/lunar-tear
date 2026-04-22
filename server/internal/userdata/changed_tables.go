@@ -161,6 +161,9 @@ func ChangedTables(before, after *store.UserState) []string {
 	if !mapsEqualStruct(before.PartsPresets, after.PartsPresets) {
 		add("IUserPartsPreset")
 	}
+	if !mapsEqualStruct(before.PartsStatusSubs, after.PartsStatusSubs) {
+		add("IUserPartsStatusSub")
+	}
 	if !mapsEqualStruct(before.CostumeActiveSkills, after.CostumeActiveSkills) {
 		add("IUserCostumeActiveSkill")
 	}
@@ -348,6 +351,8 @@ func keyFieldsForTable(table string) []string {
 		return []string{"userId", "userThoughtUuid"}
 	case "IUserParts":
 		return []string{"userId", "userPartsUuid"}
+	case "IUserPartsStatusSub":
+		return []string{"userId", "userPartsUuid", "statusIndex"}
 	case "IUserDeckCharacter":
 		return []string{"userId", "userDeckCharacterUuid"}
 	case "IUserDeck":
