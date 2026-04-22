@@ -32,15 +32,36 @@ const (
 )
 
 type config struct {
-	IP      string `json:"ip"`
-	Device  string `json:"device"`
-	Detail  string `json:"detail"`
-	Summary string `json:"summary"`
+	IP       string `json:"ip"`
+	Device   string `json:"device"`
+	Detail   string `json:"detail"`
+	Summary  string `json:"summary"`
+	GRPCPort int    `json:"grpc_port,omitempty"`
+	CDNPort  int    `json:"cdn_port,omitempty"`
+	AuthPort int    `json:"auth_port,omitempty"`
+}
+
+const (
+	defaultGRPCPort = 8003
+	defaultCDNPort  = 8080
+	defaultAuthPort = 3000
+)
+
+type ports struct {
+	GRPC int
+	CDN  int
+	Auth int
 }
 
 func main() {
 	setupOnly := flag.Bool("setup-only", false, "show patching instructions and exit without building or launching")
+	grpcPort := flag.Int("grpc-port", defaultGRPCPort, "gRPC server port")
+	cdnPort := flag.Int("cdn-port", defaultCDNPort, "CDN server port")
+	authPort := flag.Int("auth-port", defaultAuthPort, "auth server port")
 	flag.Parse()
+
+	flagSet := map[string]bool{}
+	flag.Visit(func(f *flag.Flag) { flagSet[f.Name] = true })
 
 	lipgloss.EnableLegacyWindowsANSI(os.Stdout)
 	lipgloss.EnableLegacyWindowsANSI(os.Stderr)
@@ -58,26 +79,38 @@ func main() {
 
 	ip, cfg, firstRun := resolveIP()
 
+	p := resolvePorts(flagSet, *grpcPort, *cdnPort, *authPort, cfg)
+	savedPorts := portsFromConfig(cfg)
+
+	if !firstRun && (p.GRPC != savedPorts.GRPC || p.CDN != savedPorts.CDN || p.Auth != savedPorts.Auth) {
+		if !warnPortChange(savedPorts, p) {
+			os.Exit(0)
+		}
+	}
+
+	cfg.GRPCPort = p.GRPC
+	cfg.CDNPort = p.CDN
+	cfg.AuthPort = p.Auth
 	saveConfig(cfg)
 
 	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Width(14)
 	addrStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
 
 	fmt.Println()
-	fmt.Printf("  %s %s\n", labelStyle.Render("Game server:"), addrStyle.Render(ip+":8003"))
-	fmt.Printf("  %s %s\n", labelStyle.Render("CDN:"), addrStyle.Render(ip+":8080"))
-	fmt.Printf("  %s %s\n", labelStyle.Render("Auth:"), addrStyle.Render(ip+":3000"))
+	fmt.Printf("  %s %s\n", labelStyle.Render("Game server:"), addrStyle.Render(fmt.Sprintf("%s:%d", ip, p.GRPC)))
+	fmt.Printf("  %s %s\n", labelStyle.Render("CDN:"), addrStyle.Render(fmt.Sprintf("%s:%d", ip, p.CDN)))
+	fmt.Printf("  %s %s\n", labelStyle.Render("Auth:"), addrStyle.Render(fmt.Sprintf("%s:%d", ip, p.Auth)))
 	fmt.Println()
 
 	if firstRun || *setupOnly {
-		showPatcherHint(ip, !*setupOnly)
+		showPatcherHint(ip, p, !*setupOnly)
 	}
 
 	if *setupOnly {
 		return
 	}
 
-	launchDev(ip)
+	launchDev(ip, p)
 }
 
 type assetCheck struct {
@@ -348,7 +381,7 @@ func recheckLANIP(cfg config) (string, config, bool) {
 
 	switch action {
 	case "update":
-		warnRepatch(cfg.IP, current)
+		warnRepatch(cfg.IP, current, portsFromConfig(cfg))
 		var ack bool
 		_ = huh.NewConfirm().
 			Title("Continue launching the server?").
@@ -368,7 +401,46 @@ func recheckLANIP(cfg config) (string, config, bool) {
 	}
 }
 
-func warnRepatch(oldIP, newIP string) {
+func warnPortChange(old, new ports) bool {
+	warnStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("11"))
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	hlStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
+
+	portLine := func(label string, oldP, newP int) string {
+		if oldP == newP {
+			return dimStyle.Render(fmt.Sprintf("    %-7s %d (unchanged)", label+":", oldP))
+		}
+		return hlStyle.Render(fmt.Sprintf("    %-7s %d → %d", label+":", oldP, newP))
+	}
+
+	var b strings.Builder
+	b.WriteString("\n")
+	b.WriteString(warnStyle.Render("  ⚠ Port configuration changed from last run."))
+	b.WriteString("\n\n")
+	b.WriteString(portLine("gRPC", old.GRPC, new.GRPC))
+	b.WriteString("\n")
+	b.WriteString(portLine("CDN", old.CDN, new.CDN))
+	b.WriteString("\n")
+	b.WriteString(portLine("Auth", old.Auth, new.Auth))
+	b.WriteString("\n\n")
+	b.WriteString(dimStyle.Render("  Your APK was patched for the old ports. You may need to re-patch."))
+	b.WriteString("\n\n")
+	fmt.Print(b.String())
+
+	cont := true
+	err := huh.NewConfirm().
+		Title("Continue with new ports?").
+		Affirmative("Yes, continue").
+		Negative("No, exit").
+		Value(&cont).
+		Run()
+	if err != nil {
+		os.Exit(1)
+	}
+	return cont
+}
+
+func warnRepatch(oldIP, newIP string, p ports) {
 	warnStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("11"))
 	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 	hlStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
@@ -386,16 +458,16 @@ func warnRepatch(oldIP, newIP string) {
 	b.WriteString("\n\n")
 	b.WriteString(dimStyle.Render("  Update the Configuration cell with the new addresses:"))
 	b.WriteString("\n\n")
-	b.WriteString(hlStyle.Render(fmt.Sprintf("    grpc_addr = \"%s:8003\"", newIP)))
+	b.WriteString(hlStyle.Render(fmt.Sprintf("    grpc_addr = \"%s:%d\"", newIP, p.GRPC)))
 	b.WriteString("\n")
-	b.WriteString(hlStyle.Render(fmt.Sprintf("    http_addr = \"%s:8080\"", newIP)))
+	b.WriteString(hlStyle.Render(fmt.Sprintf("    http_addr = \"%s:%d\"", newIP, p.CDN)))
 	b.WriteString("\n")
-	b.WriteString(hlStyle.Render(fmt.Sprintf("    auth_host = \"%s:3000\"", newIP)))
+	b.WriteString(hlStyle.Render(fmt.Sprintf("    auth_host = \"%s:%d\"", newIP, p.Auth)))
 	b.WriteString("\n\n")
 	fmt.Print(b.String())
 }
 
-func showPatcherHint(ip string, askLaunch bool) {
+func showPatcherHint(ip string, p ports, askLaunch bool) {
 	headStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("11"))
 	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 	hlStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
@@ -420,11 +492,11 @@ func showPatcherHint(ip string, askLaunch bool) {
 	b.WriteString("\n\n")
 	b.WriteString(dimStyle.Render("  Set these in the notebook's Configuration cell:"))
 	b.WriteString("\n\n")
-	b.WriteString(hlStyle.Render(fmt.Sprintf("    grpc_addr = \"%s:8003\"", ip)))
+	b.WriteString(hlStyle.Render(fmt.Sprintf("    grpc_addr = \"%s:%d\"", ip, p.GRPC)))
 	b.WriteString("\n")
-	b.WriteString(hlStyle.Render(fmt.Sprintf("    http_addr = \"%s:8080\"", ip)))
+	b.WriteString(hlStyle.Render(fmt.Sprintf("    http_addr = \"%s:%d\"", ip, p.CDN)))
 	b.WriteString("\n")
-	b.WriteString(hlStyle.Render(fmt.Sprintf("    auth_host = \"%s:3000\"", ip)))
+	b.WriteString(hlStyle.Render(fmt.Sprintf("    auth_host = \"%s:%d\"", ip, p.Auth)))
 	b.WriteString("\n\n")
 	b.WriteString(dimStyle.Render("  Then run all cells — a patched APK will download automatically."))
 	b.WriteString("\n\n")
@@ -683,6 +755,37 @@ func loadConfig() (config, error) {
 	return cfg, nil
 }
 
+func portsFromConfig(cfg config) ports {
+	p := ports{GRPC: cfg.GRPCPort, CDN: cfg.CDNPort, Auth: cfg.AuthPort}
+	if p.GRPC == 0 {
+		p.GRPC = defaultGRPCPort
+	}
+	if p.CDN == 0 {
+		p.CDN = defaultCDNPort
+	}
+	if p.Auth == 0 {
+		p.Auth = defaultAuthPort
+	}
+	return p
+}
+
+func resolvePorts(flagSet map[string]bool, grpcFlag, cdnFlag, authFlag int, saved config) ports {
+	resolve := func(name string, flagVal, savedVal, defaultVal int) int {
+		if flagSet[name] {
+			return flagVal
+		}
+		if savedVal != 0 {
+			return savedVal
+		}
+		return defaultVal
+	}
+	return ports{
+		GRPC: resolve("grpc-port", grpcFlag, saved.GRPCPort, defaultGRPCPort),
+		CDN:  resolve("cdn-port", cdnFlag, saved.CDNPort, defaultCDNPort),
+		Auth: resolve("auth-port", authFlag, saved.AuthPort, defaultAuthPort),
+	}
+}
+
 func saveConfig(cfg config) {
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
@@ -691,10 +794,13 @@ func saveConfig(cfg config) {
 	_ = os.WriteFile(configFile, append(data, '\n'), 0644)
 }
 
-func launchDev(ip string) {
+func launchDev(ip string, p ports) {
 	cmd := exec.Command("go", "run", "./cmd/dev",
-		"--cdn.public-addr", ip+":8080",
-		"--grpc.public-addr", ip+":8003",
+		"--grpc.listen", fmt.Sprintf("0.0.0.0:%d", p.GRPC),
+		"--grpc.public-addr", fmt.Sprintf("%s:%d", ip, p.GRPC),
+		"--cdn.listen", fmt.Sprintf("0.0.0.0:%d", p.CDN),
+		"--cdn.public-addr", fmt.Sprintf("%s:%d", ip, p.CDN),
+		"--auth.listen", fmt.Sprintf("0.0.0.0:%d", p.Auth),
 	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
