@@ -59,11 +59,20 @@ func BuildGranter(catalog *masterdata.QuestCatalog) *store.PossessionGranter {
 		}
 		releaseConditions[groupId] = conds
 	}
+	partsById := make(map[int32]store.PartsRef, len(catalog.PartsById))
+	for id, p := range catalog.PartsById {
+		partsById[id] = store.PartsRef{
+			PartsGroupId:                  p.PartsGroupId,
+			PartsStatusMainLotteryGroupId: p.PartsStatusMainLotteryGroupId,
+		}
+	}
 	return &store.PossessionGranter{
-		CostumeById:        costumeById,
-		WeaponById:         weaponById,
-		WeaponSkillSlots:   catalog.WeaponSkillSlots,
-		WeaponAbilitySlots: catalog.WeaponAbilitySlots,
-		ReleaseConditions:  releaseConditions,
+		CostumeById:                          costumeById,
+		WeaponById:                           weaponById,
+		WeaponSkillSlots:                     catalog.WeaponSkillSlots,
+		WeaponAbilitySlots:                   catalog.WeaponAbilitySlots,
+		ReleaseConditions:                    releaseConditions,
+		PartsById:                            partsById,
+		DefaultPartsStatusMainByLotteryGroup: catalog.DefaultPartsStatusMainByLotteryGroup,
 	}
 }

@@ -15,6 +15,33 @@ Discord server: https://discord.gg/MZAf5aVkJG
 go install github.com/pressly/goose/v3/cmd/goose@latest
 ```
 
+### Quick Start (Wizard)
+
+The interactive wizard walks you through setup with a few simple questions — no flags or networking knowledge needed. It auto-detects the right IP address for your emulator or phone and launches all services.
+
+```bash
+cd server
+go run ./cmd/wizard
+```
+
+Your choices are saved so next time you just press Enter to relaunch with the same settings.
+
+#### Custom Ports
+
+By default the wizard uses ports 8003 (gRPC), 8080 (CDN), and 3000 (auth). Override any of them with flags:
+
+```bash
+go run ./cmd/wizard --grpc-port 9003 --cdn-port 9080
+```
+
+| Flag          | Default | Description      |
+| ------------- | ------- | ---------------- |
+| `--grpc-port` | `8003`  | gRPC server port |
+| `--cdn-port`  | `8080`  | CDN server port  |
+| `--auth-port` | `3000`  | Auth server port |
+
+Custom ports are saved to `.wizard.json` alongside your other settings. On the next run the saved ports are reused automatically — no need to pass the flags again. If you later pass different port flags, the wizard warns you that the ports changed and asks for confirmation before continuing.
+
 ### Regenerate protobuf stubs
 
 ```bash
@@ -91,6 +118,52 @@ sudo setcap cap_net_bind_service=+ep ./lunar-tear
 ./lunar-tear --host 10.0.2.2 --http-port 8080
 ```
 
+The CDN can run on a completely separate machine — just set `--octo-url` on the game server and `--public-addr` on the CDN to the externally-reachable address.
+
+### Run All Services At Once
+
+Instead of starting each service individually, use the dev runner to launch all three (auth, CDN, game server) with a single command. No Docker required — works on macOS, Linux, and Windows.
+
+```bash
+cd server
+make dev
+```
+
+Or directly:
+
+```bash
+cd server
+go run ./cmd/dev
+```
+
+Each service's output is prefixed with a colored label (`[auth]`, `[cdn]`, `[grpc]`). Press Ctrl+C to shut everything down.
+
+The dev runner automatically builds each service into `bin/` before launching. This means the binaries have stable file paths, so **Windows Firewall only prompts once** — subsequent runs reuse the same allowed executables. The wizard performs the same build step transparently.
+
+Override defaults with namespaced flags:
+
+```bash
+go run ./cmd/dev --grpc.listen 0.0.0.0:9000 --grpc.public-addr 10.0.2.2:9000 --cdn.public-addr 192.168.1.50:8080
+```
+
+Or via `make`:
+
+```bash
+make dev ARGS="--grpc.listen 0.0.0.0:9000 --grpc.public-addr 10.0.2.2:9000"
+```
+
+| Flag                  | Default            | Description                              |
+| --------------------- | ------------------ | ---------------------------------------- |
+| `--auth.listen`       | `0.0.0.0:3000`     | auth-server listen address               |
+| `--auth.db`           | `db/auth.db`       | auth-server SQLite database path         |
+| `--cdn.listen`        | `0.0.0.0:8080`     | octo-cdn local bind address              |
+| `--cdn.public-addr`   | `10.0.2.2:8080`    | octo-cdn externally-reachable addr       |
+| `--grpc.listen`       | `0.0.0.0:8003`     | lunar-tear gRPC listen address           |
+| `--grpc.public-addr`  | `10.0.2.2:8003`    | lunar-tear externally-reachable addr     |
+| `--grpc.octo-url`     | `http://10.0.2.2:8080` | Octo CDN base URL passed to lunar-tear |
+| `--grpc.auth-url`     | `http://localhost:3000` | auth server base URL passed to lunar-tear |
+| `--no-color`          | `false`            | disable colored output                   |
+
 ### Ports
 
 | Protocol | Port | Notes                                                       |
@@ -125,8 +198,15 @@ All targets run from the `server/` directory.
 | Target         | Description                                             |
 | -------------- | ------------------------------------------------------- |
 | `make proto`   | Regenerate protobuf stubs                               |
-| `make build`   | Build the server binary                                 |
+| `make build`   | Build the game server binary                            |
+| `make build-cdn` | Build the CDN binary                                  |
+| `make build-auth` | Build the auth server binary                          |
+| `make build-dev` | Build the dev runner binary to `bin/`                  |
+| `make build-all` | Build all service binaries to `bin/`                   |
 | `make build-import` | Build the import-snapshot tool                     |
+| `make build-claim-account` | Build the claim-account tool                |
+| `make clean`   | Remove the `bin/` directory                              |
+| `make dev`     | Run all three services with one command                  |
 | `make migrate` | Run goose migrations on `db/game.db`                    |
 | `make import`  | Import a snapshot (`SNAPSHOT=... UUID=...` required)     |
 

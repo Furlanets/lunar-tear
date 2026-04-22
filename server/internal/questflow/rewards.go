@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/google/uuid"
-
 	"lunar-tear/server/internal/gameutil"
 	"lunar-tear/server/internal/masterdata"
 	"lunar-tear/server/internal/model"
@@ -262,54 +260,7 @@ func (h *QuestHandler) applyQuestRewards(user *store.UserState, questId int32, n
 }
 
 func (h *QuestHandler) applyRewardPossession(user *store.UserState, possType model.PossessionType, possId, count int32, nowMillis int64) {
-	switch possType {
-	case model.PossessionTypeCompanion:
-		h.grantCompanion(user, possId, nowMillis)
-	case model.PossessionTypeParts:
-		h.grantParts(user, possId, nowMillis)
-	default:
-		h.Granter.GrantFull(user, possType, possId, count, nowMillis)
-	}
-}
-
-func (h *QuestHandler) grantCompanion(user *store.UserState, companionId int32, nowMillis int64) {
-	for _, row := range user.Companions {
-		if row.CompanionId == companionId {
-			return
-		}
-	}
-	key := uuid.New().String()
-	user.Companions[key] = store.CompanionState{
-		UserCompanionUuid:   key,
-		CompanionId:         companionId,
-		Level:               1,
-		HeadupDisplayViewId: 1,
-		AcquisitionDatetime: nowMillis,
-	}
-}
-
-func (h *QuestHandler) grantParts(user *store.UserState, partsId int32, nowMillis int64) {
-	var mainStatId int32
-	if partsDef, ok := h.PartsById[partsId]; ok {
-		mainStatId = h.DefaultPartsStatusMainByLotteryGroup[partsDef.PartsStatusMainLotteryGroupId]
-
-		if _, exists := user.PartsGroupNotes[partsDef.PartsGroupId]; !exists {
-			user.PartsGroupNotes[partsDef.PartsGroupId] = store.PartsGroupNoteState{
-				PartsGroupId:             partsDef.PartsGroupId,
-				FirstAcquisitionDatetime: nowMillis,
-				LatestVersion:            nowMillis,
-			}
-		}
-	}
-
-	key := uuid.New().String()
-	user.Parts[key] = store.PartsState{
-		UserPartsUuid:       key,
-		PartsId:             partsId,
-		Level:               1,
-		PartsStatusMainId:   mainStatId,
-		AcquisitionDatetime: nowMillis,
-	}
+	h.Granter.GrantFull(user, possType, possId, count, nowMillis)
 }
 
 func (h *QuestHandler) grantWeaponStoryUnlock(user *store.UserState, weaponId, storyIndex int32, nowMillis int64) bool {
@@ -338,7 +289,7 @@ func (h *QuestHandler) applyCompanionTutorialReward(user *store.UserState, choic
 		log.Printf("[QuestHandler] unknown companion tutorial choiceId=%d", choiceId)
 		return nil
 	}
-	h.grantCompanion(user, companionId, nowMillis)
+	h.Granter.GrantCompanion(user, companionId, nowMillis)
 	return []RewardGrant{{
 		PossessionType: model.PossessionTypeCompanion,
 		PossessionId:   companionId,

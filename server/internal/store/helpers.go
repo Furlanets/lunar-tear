@@ -100,12 +100,20 @@ type WeaponStoryReleaseCond struct {
 	ConditionValue                  int32
 }
 
+type PartsRef struct {
+	PartsGroupId                  int32
+	PartsStatusMainLotteryGroupId int32
+}
+
 type PossessionGranter struct {
 	CostumeById        map[int32]CostumeRef
 	WeaponById         map[int32]WeaponRef
 	WeaponSkillSlots   map[int32][]int32
 	WeaponAbilitySlots map[int32][]int32
 	ReleaseConditions  map[int32][]WeaponStoryReleaseCond
+
+	PartsById                            map[int32]PartsRef
+	DefaultPartsStatusMainByLotteryGroup map[int32]int32
 
 	LastChangedStoryWeaponIds []int32
 }
@@ -122,6 +130,10 @@ func (g *PossessionGranter) GrantFull(user *UserState, possessionType model.Poss
 		g.GrantCostume(user, possessionId, nowMillis)
 	case model.PossessionTypeWeapon, model.PossessionTypeWeaponEnhanced:
 		g.GrantWeapon(user, possessionId, nowMillis)
+	case model.PossessionTypeCompanion, model.PossessionTypeCompanionEnhanced:
+		g.GrantCompanion(user, possessionId, nowMillis)
+	case model.PossessionTypeParts, model.PossessionTypePartsEnhanced:
+		g.GrantParts(user, possessionId, nowMillis)
 	default:
 		GrantPossession(user, possessionType, possessionId, count)
 	}
@@ -152,6 +164,44 @@ func (g *PossessionGranter) GrantCostume(user *UserState, costumeId int32, nowMi
 	user.CostumeActiveSkills[key] = CostumeActiveSkillState{
 		UserCostumeUuid:     key,
 		Level:               1,
+		AcquisitionDatetime: nowMillis,
+	}
+}
+
+func (g *PossessionGranter) GrantCompanion(user *UserState, companionId int32, nowMillis int64) {
+	for _, row := range user.Companions {
+		if row.CompanionId == companionId {
+			return
+		}
+	}
+	key := uuid.New().String()
+	user.Companions[key] = CompanionState{
+		UserCompanionUuid:   key,
+		CompanionId:         companionId,
+		Level:               1,
+		HeadupDisplayViewId: 1,
+		AcquisitionDatetime: nowMillis,
+	}
+}
+
+func (g *PossessionGranter) GrantParts(user *UserState, partsId int32, nowMillis int64) {
+	var mainStatId int32
+	if ref, ok := g.PartsById[partsId]; ok {
+		mainStatId = g.DefaultPartsStatusMainByLotteryGroup[ref.PartsStatusMainLotteryGroupId]
+		if _, exists := user.PartsGroupNotes[ref.PartsGroupId]; !exists {
+			user.PartsGroupNotes[ref.PartsGroupId] = PartsGroupNoteState{
+				PartsGroupId:             ref.PartsGroupId,
+				FirstAcquisitionDatetime: nowMillis,
+				LatestVersion:            nowMillis,
+			}
+		}
+	}
+	key := uuid.New().String()
+	user.Parts[key] = PartsState{
+		UserPartsUuid:       key,
+		PartsId:             partsId,
+		Level:               1,
+		PartsStatusMainId:   mainStatId,
 		AcquisitionDatetime: nowMillis,
 	}
 }
