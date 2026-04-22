@@ -69,6 +69,11 @@ func (s *PartsServiceServer) Sell(ctx context.Context, req *pb.PartsSellRequest)
 			gold := sellFunc.Evaluate(part.Level)
 			totalGold += gold
 			delete(user.Parts, uuid)
+			for k := range user.PartsStatusSubs {
+				if k.UserPartsUuid == uuid {
+					delete(user.PartsStatusSubs, k)
+				}
+			}
 			log.Printf("[PartsService] Sell: uuid=%s partsId=%d level=%d -> %d gold", uuid, part.PartsId, part.Level, gold)
 		}
 
@@ -146,6 +151,8 @@ func (s *PartsServiceServer) Enhance(ctx context.Context, req *pb.PartsEnhanceRe
 			isSuccess = true
 			log.Printf("[PartsService] Enhance: SUCCESS partsId=%d level %d -> %d (rate=%d‰, cost=%d gold)",
 				part.PartsId, part.Level-1, part.Level, successRate, goldCost)
+
+			s.grantSubStatuses(user, req.UserPartsUuid, part, partDef, nowMillis)
 		} else {
 			log.Printf("[PartsService] Enhance: FAIL partsId=%d stays level %d (rate=%d‰, cost=%d gold)",
 				part.PartsId, part.Level, successRate, goldCost)
@@ -164,6 +171,49 @@ func (s *PartsServiceServer) Enhance(ctx context.Context, req *pb.PartsEnhanceRe
 		IsSuccess:    isSuccess,
 		DiffUserData: diff,
 	}, nil
+}
+
+func (s *PartsServiceServer) grantSubStatuses(user *store.UserState, uuid string, part store.PartsState, partDef masterdata.EntityMParts, nowMillis int64) {
+	unlockLevels := s.catalog.SubStatusUnlockLvls[partDef.RarityType]
+	pool := s.catalog.SubStatusPool[partDef.PartsStatusSubLotteryGroupId]
+	if len(pool) == 0 {
+		return
+	}
+
+	for slotIdx, lvl := range unlockLevels {
+		if part.Level != lvl {
+			continue
+		}
+		statusIndex := int32(slotIdx + 1)
+		key := store.PartsStatusSubKey{UserPartsUuid: uuid, StatusIndex: statusIndex}
+		if _, exists := user.PartsStatusSubs[key]; exists {
+			continue
+		}
+
+		pick := pool[rand.Intn(len(pool))]
+		def, ok := s.catalog.PartsStatusMainById[pick]
+		if !ok {
+			continue
+		}
+
+		statusValue := def.StatusChangeInitialValue
+		if f, ok := s.catalog.FuncResolver.Resolve(def.StatusNumericalFunctionId); ok {
+			statusValue = f.Evaluate(part.Level)
+		}
+
+		user.PartsStatusSubs[key] = store.PartsStatusSubState{
+			UserPartsUuid:           uuid,
+			StatusIndex:             statusIndex,
+			PartsStatusSubLotteryId: pick,
+			Level:                   part.Level,
+			StatusKindType:          def.StatusKindType,
+			StatusCalculationType:   def.StatusCalculationType,
+			StatusChangeValue:       statusValue,
+			LatestVersion:           nowMillis,
+		}
+		log.Printf("[PartsService] Enhance: granted sub-status slot=%d lotteryId=%d kind=%d calc=%d val=%d",
+			statusIndex, pick, def.StatusKindType, def.StatusCalculationType, statusValue)
+	}
 }
 
 func (s *PartsServiceServer) ReplacePreset(ctx context.Context, req *pb.PartsReplacePresetRequest) (*pb.PartsReplacePresetResponse, error) {

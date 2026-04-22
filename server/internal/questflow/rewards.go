@@ -289,12 +289,6 @@ func (h *QuestHandler) grantCompanion(user *store.UserState, companionId int32, 
 }
 
 func (h *QuestHandler) grantParts(user *store.UserState, partsId int32, nowMillis int64) {
-	for _, row := range user.Parts {
-		if row.PartsId == partsId {
-			return
-		}
-	}
-
 	var mainStatId int32
 	if partsDef, ok := h.PartsById[partsId]; ok {
 		mainStatId = h.DefaultPartsStatusMainByLotteryGroup[partsDef.PartsStatusMainLotteryGroupId]

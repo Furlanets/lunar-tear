@@ -113,12 +113,15 @@ func init() {
 		s, _ := encodeJSONMaps(SortedCostumeLotteryEffectPendingRecords(user)...)
 		return s
 	})
+	register("IUserPartsStatusSub", func(user store.UserState) string {
+		s, _ := utils.EncodeJSONMaps(sortedPartsStatusSubRecords(user)...)
+		return s
+	})
 	registerStatic(
 		"IUserCostumeLevelBonusReleaseStatus",
 		"IUserCostumeLotteryEffectAbility",
 		"IUserCostumeLotteryEffectStatusUp",
 		"IUserPartsPresetTag",
-		"IUserPartsStatusSub",
 	)
 }
 
@@ -487,6 +490,35 @@ func sortedPartsPresetRecords(user store.UserState) []map[string]any {
 			"name":                     row.Name,
 			"userPartsPresetTagNumber": row.UserPartsPresetTagNumber,
 			"latestVersion":            row.LatestVersion,
+		})
+	}
+	return records
+}
+
+func sortedPartsStatusSubRecords(user store.UserState) []map[string]any {
+	keys := make([]store.PartsStatusSubKey, 0, len(user.PartsStatusSubs))
+	for k := range user.PartsStatusSubs {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].UserPartsUuid != keys[j].UserPartsUuid {
+			return keys[i].UserPartsUuid < keys[j].UserPartsUuid
+		}
+		return keys[i].StatusIndex < keys[j].StatusIndex
+	})
+	records := make([]map[string]any, 0, len(keys))
+	for _, k := range keys {
+		row := user.PartsStatusSubs[k]
+		records = append(records, map[string]any{
+			"userId":                  user.UserId,
+			"userPartsUuid":           row.UserPartsUuid,
+			"statusIndex":             row.StatusIndex,
+			"partsStatusSubLotteryId": row.PartsStatusSubLotteryId,
+			"level":                   row.Level,
+			"statusKindType":          row.StatusKindType,
+			"statusCalculationType":   row.StatusCalculationType,
+			"statusChangeValue":       row.StatusChangeValue,
+			"latestVersion":           row.LatestVersion,
 		})
 	}
 	return records

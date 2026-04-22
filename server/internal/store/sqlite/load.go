@@ -58,6 +58,7 @@ func initMaps(u *store.UserState) {
 	u.Parts = make(map[string]store.PartsState)
 	u.PartsGroupNotes = make(map[int32]store.PartsGroupNoteState)
 	u.PartsPresets = make(map[int32]store.PartsPresetState)
+	u.PartsStatusSubs = make(map[store.PartsStatusSubKey]store.PartsStatusSubState)
 	u.DeckTypeNotes = make(map[model.DeckType]store.DeckTypeNoteState)
 	u.ConsumableItems = make(map[int32]int32)
 	u.Materials = make(map[int32]int32)
@@ -449,6 +450,16 @@ func loadMapTables(db *sql.DB, uid int64, u *store.UserState) {
 			rows.Scan(&v.UserPartsPresetNumber, &v.UserPartsUuid01, &v.UserPartsUuid02, &v.UserPartsUuid03,
 				&v.Name, &v.UserPartsPresetTagNumber, &v.LatestVersion)
 			u.PartsPresets[v.UserPartsPresetNumber] = v
+		})
+
+	queryRows(db, `SELECT user_parts_uuid, status_index, parts_status_sub_lottery_id, level,
+		status_kind_type, status_calculation_type, status_change_value, latest_version
+		FROM user_parts_status_subs WHERE user_id=?`, uid,
+		func(rows *sql.Rows) {
+			var v store.PartsStatusSubState
+			rows.Scan(&v.UserPartsUuid, &v.StatusIndex, &v.PartsStatusSubLotteryId, &v.Level,
+				&v.StatusKindType, &v.StatusCalculationType, &v.StatusChangeValue, &v.LatestVersion)
+			u.PartsStatusSubs[store.PartsStatusSubKey{UserPartsUuid: v.UserPartsUuid, StatusIndex: v.StatusIndex}] = v
 		})
 
 	queryRows(db, `SELECT deck_type, max_deck_power, latest_version FROM user_deck_type_notes WHERE user_id=?`, uid,
