@@ -56,16 +56,6 @@ Player state is stored in a SQLite database. Run migrations before starting the 
 ```bash
 cd server
 make migrate
-
-or
-
-cd server
-sudo go run ./cmd/lunar-tear \
-  --host 10.0.2.2 \
-  --http-port 8080 \
-  --scene 13 
-  go run ./cmd/lunar-tear \ --host 10.0.2.2 \ --http-port 8080 \ --scene 6
-
 ```
 
 Or manually:
@@ -120,9 +110,9 @@ sudo setcap cap_net_bind_service=+ep ./lunar-tear
 
 The CDN can run on a completely separate machine — just set `--octo-url` on the game server and `--public-addr` on the CDN to the externally-reachable address.
 
-### Run All Services At Once
+### Run With Dev Runner
 
-Instead of starting each service individually, use the dev runner to launch all three (auth, CDN, game server) with a single command. No Docker required — works on macOS, Linux, and Windows.
+Instead of manually building binaries, use the dev runner to build and launch `lunar-tear` with one command. No Docker required — works on macOS, Linux, and Windows.
 
 ```bash
 cd server
@@ -136,14 +126,14 @@ cd server
 go run ./cmd/dev
 ```
 
-Each service's output is prefixed with a colored label (`[auth]`, `[cdn]`, `[grpc]`). Press Ctrl+C to shut everything down.
+Output is prefixed with a colored label (`[grpc]`). Press Ctrl+C to shut everything down.
 
-The dev runner automatically builds each service into `bin/` before launching. This means the binaries have stable file paths, so **Windows Firewall only prompts once** — subsequent runs reuse the same allowed executables. The wizard performs the same build step transparently.
+The dev runner automatically builds the required binaries into `bin/` before launching. This means executables have stable file paths, so **Windows Firewall only prompts once** — subsequent runs reuse the same allowed executable. The wizard performs the same build step transparently.
 
 Override defaults with namespaced flags:
 
 ```bash
-go run ./cmd/dev --grpc.listen 0.0.0.0:9000 --grpc.public-addr 10.0.2.2:9000 --cdn.public-addr 192.168.1.50:8080
+go run ./cmd/dev --grpc.listen 0.0.0.0:9000 --grpc.public-addr 10.0.2.2:9000 --grpc.octo-url http://192.168.1.50:8080
 ```
 
 Or via `make`:
@@ -154,10 +144,6 @@ make dev ARGS="--grpc.listen 0.0.0.0:9000 --grpc.public-addr 10.0.2.2:9000"
 
 | Flag                  | Default            | Description                              |
 | --------------------- | ------------------ | ---------------------------------------- |
-| `--auth.listen`       | `0.0.0.0:3000`     | auth-server listen address               |
-| `--auth.db`           | `db/auth.db`       | auth-server SQLite database path         |
-| `--cdn.listen`        | `0.0.0.0:8080`     | octo-cdn local bind address              |
-| `--cdn.public-addr`   | `10.0.2.2:8080`    | octo-cdn externally-reachable addr       |
 | `--grpc.listen`       | `0.0.0.0:8003`     | lunar-tear gRPC listen address           |
 | `--grpc.public-addr`  | `10.0.2.2:8003`    | lunar-tear externally-reachable addr     |
 | `--grpc.octo-url`     | `http://10.0.2.2:8080` | Octo CDN base URL passed to lunar-tear |
@@ -199,14 +185,11 @@ All targets run from the `server/` directory.
 | -------------- | ------------------------------------------------------- |
 | `make proto`   | Regenerate protobuf stubs                               |
 | `make build`   | Build the game server binary                            |
-| `make build-cdn` | Build the CDN binary                                  |
-| `make build-auth` | Build the auth server binary                          |
 | `make build-dev` | Build the dev runner binary to `bin/`                  |
-| `make build-all` | Build all service binaries to `bin/`                   |
+| `make build-all` | Build available binaries to `bin/`                     |
 | `make build-import` | Build the import-snapshot tool                     |
-| `make build-claim-account` | Build the claim-account tool                |
 | `make clean`   | Remove the `bin/` directory                              |
-| `make dev`     | Run all three services with one command                  |
+| `make dev`     | Build and run `lunar-tear` via dev runner                |
 | `make migrate` | Run goose migrations on `db/game.db`                    |
 | `make import`  | Import a snapshot (`SNAPSHOT=... UUID=...` required)     |
 

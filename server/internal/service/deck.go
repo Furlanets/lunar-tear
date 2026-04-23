@@ -242,7 +242,7 @@ func (s *DeckServiceServer) ReplaceTripleDeck(ctx context.Context, req *pb.Repla
 
 func (s *DeckServiceServer) RemoveDeck(ctx context.Context, req *pb.RemoveDeckRequest) (*pb.RemoveDeckResponse, error) {
 	log.Printf("[DeckService] RemoveDeck: deckType=%d deckNumber=%d", req.DeckType, req.UserDeckNumber)
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 
 	s.users.UpdateUser(userId, func(user *store.UserState) {
 		store.RemoveDeckData(user, model.DeckType(req.DeckType), req.UserDeckNumber)
@@ -254,7 +254,7 @@ func (s *DeckServiceServer) RemoveDeck(ctx context.Context, req *pb.RemoveDeckRe
 func (s *DeckServiceServer) CopyDeck(ctx context.Context, req *pb.CopyDeckRequest) (*pb.CopyDeckResponse, error) {
 	log.Printf("[DeckService] CopyDeck: from deckType=%d deckNumber=%d -> to deckType=%d deckNumber=%d",
 		req.FromDeckType, req.FromUserDeckNumber, req.ToDeckType, req.ToUserDeckNumber)
-	userId := CurrentUserId(ctx, s.users, s.sessions)
+	userId := currentUserId(ctx, s.users, s.sessions)
 
 	var resultType int32
 	s.users.UpdateUser(userId, func(user *store.UserState) {

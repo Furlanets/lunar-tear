@@ -440,6 +440,7 @@ func (s *OctoHTTPServer) handleWebAPI(w http.ResponseWriter, r *http.Request, pa
 	if strings.Contains(path, "privacy") {
 		language := staticPageLanguage(path)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.WriteHeader(200)
 		w.Write([]byte(renderStaticTermsPage("Privacy Policy", language, privacyVersionMarker)))
 		return

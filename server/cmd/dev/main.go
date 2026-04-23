@@ -19,9 +19,7 @@ import (
 var (
 	colorReset  = "\033[0m"
 	colorRed    = "\033[31m"
-	colorGreen  = "\033[32m"
 	colorYellow = "\033[33m"
-	colorCyan   = "\033[36m"
 )
 
 type service struct {
@@ -47,8 +45,6 @@ func buildAll() {
 		pkg  string
 	}
 	targets := []target{
-		{"auth-server", "./cmd/auth-server"},
-		{"octo-cdn", "./cmd/octo-cdn"},
 		{"lunar-tear", "./cmd/lunar-tear"},
 	}
 
@@ -78,37 +74,20 @@ func buildAll() {
 }
 
 func main() {
-	// auth-server flags
-	authListen := flag.String("auth.listen", "0.0.0.0:3000", "auth-server listen address (host:port)")
-	authDB := flag.String("auth.db", "db/auth.db", "auth-server SQLite database path")
-
-	// octo-cdn flags
-	cdnListen := flag.String("cdn.listen", "0.0.0.0:8080", "octo-cdn local bind address")
-	cdnPublicAddr := flag.String("cdn.public-addr", "10.0.2.2:8080", "octo-cdn externally-reachable address")
-
 	// lunar-tear (grpc) flags
 	grpcListen := flag.String("grpc.listen", "0.0.0.0:8003", "lunar-tear gRPC listen address (host:port)")
 	grpcPublicAddr := flag.String("grpc.public-addr", "10.0.2.2:8003", "lunar-tear externally-reachable address")
 	grpcDB := flag.String("grpc.db", "db/game.db", "lunar-tear SQLite database path")
-	grpcOctoURL := flag.String("grpc.octo-url", "", "Octo CDN base URL passed to lunar-tear (default: derived from cdn.public-addr)")
-	grpcAuthURL := flag.String("grpc.auth-url", "", "auth server base URL passed to lunar-tear (default: derived from auth.listen)")
+	grpcOctoURL := flag.String("grpc.octo-url", "http://10.0.2.2:8080", "Octo CDN base URL passed to lunar-tear")
+	grpcAuthURL := flag.String("grpc.auth-url", "http://localhost:3000", "auth server base URL passed to lunar-tear")
 
 	noColor := flag.Bool("no-color", false, "disable colored output")
 	flag.Parse()
 
-	if *grpcOctoURL == "" {
-		*grpcOctoURL = fmt.Sprintf("http://%s", *cdnPublicAddr)
-	}
-	if *grpcAuthURL == "" {
-		*grpcAuthURL = fmt.Sprintf("http://%s", *authListen)
-	}
-
-	if *noColor || !colorSupported() {
+	if *noColor {
 		colorReset = ""
 		colorRed = ""
-		colorGreen = ""
 		colorYellow = ""
-		colorCyan = ""
 	}
 
 	log.Println("building services...")
@@ -119,22 +98,6 @@ func main() {
 	defer stop()
 
 	services := []service{
-		{
-			label: "auth",
-			color: colorGreen,
-			cmd: exec.CommandContext(ctx, filepath.Join("bin", "auth-server"+ext),
-				"--listen", *authListen,
-				"--db", *authDB,
-			),
-		},
-		{
-			label: "cdn",
-			color: colorCyan,
-			cmd: exec.CommandContext(ctx, filepath.Join("bin", "octo-cdn"+ext),
-				"--listen", *cdnListen,
-				"--public-addr", *cdnPublicAddr,
-			),
-		},
 		{
 			label: "grpc",
 			color: colorYellow,

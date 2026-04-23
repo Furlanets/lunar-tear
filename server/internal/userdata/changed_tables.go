@@ -92,10 +92,6 @@ func ChangedTables(before, after *store.UserState) []string {
 	if before.BigHuntProgress != after.BigHuntProgress {
 		add("IUserBigHuntProgressStatus")
 	}
-	if before.FacebookId != after.FacebookId {
-		add("IUserFacebook")
-	}
-
 	if before.MainQuest != after.MainQuest {
 		add("IUserMainQuestFlowStatus")
 		add("IUserMainQuestMainFlowStatus")

@@ -33,6 +33,13 @@ type partsLevelUpPriceRow struct {
 	Gold                     int32 `json:"Gold"`
 }
 
+type PartsStatusMainDef struct {
+	StatusKindType            int32
+	StatusCalculationType     int32
+	StatusChangeInitialValue  int32
+	StatusNumericalFunctionId int32
+}
+
 type PartsCatalog struct {
 	PartsById                            map[int32]PartsRow
 	DefaultPartsStatusMainByLotteryGroup map[int32]int32

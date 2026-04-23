@@ -21,12 +21,6 @@ build:
 build-import:
 	go build -o import-snapshot$(EXE) ./cmd/import-snapshot
 
-build-auth:
-	go build -o auth-server$(EXE) ./cmd/auth-server
-
-build-claim-account:
-	go build -o claim-account$(EXE) ./cmd/claim-account
-
 build-dev:
 	go build -o bin/dev$(EXE) ./cmd/dev
 
@@ -37,8 +31,6 @@ else
 	mkdir -p bin
 endif
 	go build -o bin/dev$(EXE) ./cmd/dev
-	go build -o bin/auth-server$(EXE) ./cmd/auth-server
-	go build -o bin/octo-cdn$(EXE) ./cmd/octo-cdn
 	go build -o bin/lunar-tear$(EXE) ./cmd/lunar-tear
 
 clean:
@@ -52,6 +44,9 @@ dev:
 	go run ./cmd/dev $(ARGS)
 
 migrate:
+ifeq ($(OS),Windows_NT)
+	if not exist db mkdir db
+else
 	mkdir -p db
 endif
 	$(GOOSE) -dir migrations -allow-missing sqlite3 db/game.db up
@@ -65,4 +60,4 @@ ifndef UUID
 endif
 	go run ./cmd/import-snapshot --snapshot $(SNAPSHOT) --uuid $(UUID)
 
-.PHONY: proto build build-cdn build-auth build-import build-claim-account build-dev build-all clean dev migrate import
+.PHONY: proto build build-import build-dev build-all clean dev migrate import

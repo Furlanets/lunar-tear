@@ -114,7 +114,7 @@ func init() {
 		return s
 	})
 	register("IUserPartsStatusSub", func(user store.UserState) string {
-		s, _ := utils.EncodeJSONMaps(sortedPartsStatusSubRecords(user)...)
+		s, _ := encodeJSONMaps(sortedPartsStatusSubRecords(user)...)
 		return s
 	})
 	registerStatic(

@@ -173,9 +173,9 @@ func (s *PartsServiceServer) Enhance(ctx context.Context, req *pb.PartsEnhanceRe
 	}, nil
 }
 
-func (s *PartsServiceServer) grantSubStatuses(user *store.UserState, uuid string, part store.PartsState, partDef masterdata.EntityMParts, nowMillis int64) {
+func (s *PartsServiceServer) grantSubStatuses(user *store.UserState, uuid string, part store.PartsState, partDef masterdata.PartsRow, nowMillis int64) {
 	unlockLevels := s.catalog.SubStatusUnlockLvls[partDef.RarityType]
-	pool := s.catalog.SubStatusPool[partDef.PartsStatusSubLotteryGroupId]
+	pool := s.catalog.SubStatusPool[partDef.PartsStatusMainLotteryGroupId]
 	if len(pool) == 0 {
 		return
 	}
